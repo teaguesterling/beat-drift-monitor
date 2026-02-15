@@ -2,3 +2,13 @@
 cmd = "node test/run_tests.js"
 description = "Run beat tracker algorithm tests"
 format = "auto"
+
+[commands.test-scenario]
+tpl = "node test/run_tests.js --scenario={scenario}"
+description = "Run a specific test scenario"
+format = "auto"
+
+[commands.test-scenario-verbose]
+tpl = "node test/run_tests.js --scenario={scenario} --verbose"
+description = "Run a specific test scenario with verbose output"
+format = "auto"

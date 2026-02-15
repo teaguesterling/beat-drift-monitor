@@ -334,6 +334,22 @@ function main() {
       console.log(`    Onsets: ${result.onsetCount}`);
       console.log(`    Final state: ${result.finalState?.state}`);
       console.log(`    Grid hits: ${result.finalState?.gridHits}`);
+      console.log(`    Final period: ${result.finalState?.period?.toFixed(2)}ms`);
+      console.log(`    Target period: ${result.finalState?.targetPeriod?.toFixed(2)}ms`);
+
+      // Show first few tracking entries and last few
+      const trackingEntries = result.trace.filter(t => t.state === 'TRACKING');
+      const firstTracking = trackingEntries.slice(0, 5);
+      const lastTracking = trackingEntries.slice(-3);
+
+      console.log(`    First tracking entries:`);
+      for (const t of firstTracking) {
+        console.log(`      onset=${t.onsetCount} implied=${t.impliedPeriod?.toFixed(1)} period=${t.periodBefore?.toFixed(1)}->${t.periodAfter?.toFixed(1)} drift=${t.drift?.toFixed(2)} event=${t.event}`);
+      }
+      console.log(`    Last tracking entries:`);
+      for (const t of lastTracking) {
+        console.log(`      onset=${t.onsetCount} implied=${t.impliedPeriod?.toFixed(1)} period=${t.periodAfter?.toFixed(1)} drift=${t.drift?.toFixed(2)} event=${t.event}`);
+      }
       console.log('');
     }
   }

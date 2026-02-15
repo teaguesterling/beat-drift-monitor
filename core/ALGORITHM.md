@@ -42,7 +42,6 @@ A 0-1 value indicating how well-locked the tracker is. Increases with on-grid hi
 |------|-------|-------------|
 | `CAL_BEATS` | 8 | Number of onsets required for initial calibration |
 | `ADAPT_FAST` | 0.08 | Period adaptation rate (IIR filter coefficient) |
-| `ADAPT_SLOW` | 0.005 | Target period adaptation rate (running recalibration) |
 | `GRID_TOLERANCE` | 0.35 | Fraction of period that counts as "on-grid" (±35%) |
 | `SILENCE_TIMEOUT_MS` | 4000 | Gap before entering WAITING state |
 | `PERIOD_HISTORY` | 12 | Number of recent periods to store |
@@ -92,8 +91,9 @@ if (impliedPeriod > MIN_PERIOD_MS && impliedPeriod < MAX_PERIOD_MS && nearestBea
     // Fast adaptation: track current tempo
     period = period + ADAPT_FAST * (impliedPeriod - period)
 
-    // Slow adaptation: running recalibration of target
-    targetPeriod = targetPeriod + ADAPT_SLOW * (period - targetPeriod)
+    // NOTE: targetPeriod is NOT updated during tracking.
+    // It remains fixed at calibrated value so drift can be measured.
+    // Target only changes on: calibration, song gap, or explicit setTarget().
 
     // Phase correction: snap grid toward this onset
     phase = timestamp - (nearestBeat * period) + (offset * period * 0.3)
@@ -212,5 +212,7 @@ Each onset produces a trace record:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.2.0 | 2025-02 | Remove ADAPT_SLOW - target now fixed during tracking for proper drift detection |
+| 2.1.0 | 2025-02 | Extract to standalone module with debug tracing |
 | 2.0.0 | 2025-02 | PLL-based grid tracking, replaces interval averaging |
 | 1.0.0 | 2025-02 | Simple interval averaging between consecutive onsets |

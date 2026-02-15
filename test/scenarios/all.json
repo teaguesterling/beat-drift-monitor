@@ -38,7 +38,7 @@
         "play_beats": 55
       },
       "expectations": [
-        { "after_onset": 20, "drift_min": -4, "drift_max": -2 },
+        { "after_onset": 20, "drift_min": -3, "drift_max": -1.5 },
         { "after_onset": 40, "drift_min": -3.5, "drift_max": -2.5 }
       ]
     },
@@ -74,8 +74,8 @@
       },
       "expectations": [
         { "after_onset": 16, "drift_min": -0.5, "drift_max": 0.5 },
-        { "after_onset": 32, "drift_min": -5, "drift_max": -2 },
-        { "after_onset": 44, "drift_min": -5, "drift_max": -3 }
+        { "after_onset": 32, "drift_min": -3, "drift_max": -1.5 },
+        { "after_onset": 44, "drift_min": -4.5, "drift_max": -3 }
       ]
     },
     {
@@ -90,7 +90,7 @@
       },
       "expectations": [
         { "after_onset": 16, "drift_min": -0.5, "drift_max": 0.5 },
-        { "after_onset": 32, "drift_min": 3, "drift_max": 7 },
+        { "after_onset": 32, "drift_min": 2, "drift_max": 4 },
         { "after_onset": 44, "drift_min": 4, "drift_max": 7 }
       ]
     },
@@ -108,7 +108,7 @@
       },
       "expectations": [
         { "after_onset": 12, "drift_min": -0.5, "drift_max": 0.5 },
-        { "after_onset": 24, "drift_min": 3, "drift_max": 6 },
+        { "after_onset": 24, "drift_min": 2, "drift_max": 5 },
         { "after_onset": 40, "drift_min": -1, "drift_max": 2 }
       ]
     },
@@ -172,8 +172,8 @@
       },
       "expectations": [
         { "after_onset": 24, "drift_min": -0.5, "drift_max": 0.5 },
-        { "after_onset": 40, "drift_min": -8, "drift_max": -4 },
-        { "after_onset": 56, "drift_min": -8, "drift_max": -5 }
+        { "after_onset": 40, "drift_min": -5, "drift_max": -2.5 },
+        { "after_onset": 56, "drift_min": -7, "drift_max": -5 }
       ]
     }
   ]

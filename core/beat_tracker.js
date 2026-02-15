@@ -4,7 +4,7 @@
  * PLL-based beat grid tracker that detects tempo drift relative to a
  * calibrated reference tempo.
  *
- * @version 2.1.0
+ * @version 2.2.0
  * @see ALGORITHM.md for specification
  */
 
@@ -15,7 +15,7 @@
 export const CONSTANTS = {
   CAL_BEATS: 8,              // Onsets required for calibration
   ADAPT_FAST: 0.08,          // Period adaptation rate
-  ADAPT_SLOW: 0.005,         // Target period adaptation rate
+  ADAPT_SLOW: 0.005,         // (UNUSED) Was: target period adaptation rate
   GRID_TOLERANCE: 0.35,      // Fraction of period that counts as "on-grid"
   SILENCE_TIMEOUT_MS: 4000,  // Gap before WAITING state
   PERIOD_HISTORY: 12,        // Recent periods to store
@@ -127,6 +127,7 @@ export function createBeatTracker(options = {}) {
   let phase = 0;             // timestamp of last grid alignment
   let targetPeriod = 0;      // slowly-adapting reference period
   let confidence = 0;        // 0-1 lock quality
+  let lastOnGridTime = 0;    // timestamp of last on-grid beat (for interval measurement)
 
   // Calibration
   let calOnsets = [];
@@ -214,6 +215,7 @@ export function createBeatTracker(options = {}) {
     phase = 0;
     targetPeriod = 0;
     confidence = 0;
+    lastOnGridTime = 0;
     calOnsets = [];
     recentPeriods = [];
     onsetCount = 0;
@@ -313,6 +315,7 @@ export function createBeatTracker(options = {}) {
         phase = timestamp;
         confidence = 0.5;
         recentPeriods = [basePeriod];
+        lastOnGridTime = timestamp;  // Initialize for interval tracking
         state = State.TRACKING;
 
         traceOnset({
@@ -355,15 +358,27 @@ export function createBeatTracker(options = {}) {
       event = 'on_grid';
       gridHits++;
 
-      impliedPeriod = timeSincePhase / nearestBeat;
+      // Calculate implied period from ACTUAL interval between on-grid beats
+      // This avoids errors from phase drift when tempo changes
+      if (lastOnGridTime > 0) {
+        const actualInterval = timestamp - lastOnGridTime;
+        // Estimate beat count from actual interval, not grid position
+        // This handles tempo changes better than using nearestBeat (which is grid-relative)
+        const estimatedBeats = Math.max(1, Math.round(actualInterval / period));
+        impliedPeriod = actualInterval / estimatedBeats;
+      } else {
+        // First on-grid beat after calibration - use grid-based calculation
+        impliedPeriod = timeSincePhase / nearestBeat;
+      }
 
       // Validate implied period
-      if (impliedPeriod > C.MIN_PERIOD_MS && impliedPeriod < C.MAX_PERIOD_MS && nearestBeat > 0) {
+      if (impliedPeriod > C.MIN_PERIOD_MS && impliedPeriod < C.MAX_PERIOD_MS) {
         // Fast adaptation: track current tempo
         period = period + C.ADAPT_FAST * (impliedPeriod - period);
 
-        // Slow adaptation: running recalibration of target
-        targetPeriod = targetPeriod + C.ADAPT_SLOW * (period - targetPeriod);
+        // NOTE: targetPeriod is NOT updated during tracking.
+        // It remains fixed at the calibrated value so drift can be measured.
+        // Target only changes on: calibration, song gap, or explicit setTarget().
 
         // Phase correction: snap grid toward this onset
         phase = timestamp - (nearestBeat * period) + (offset * period * 0.3);
@@ -375,6 +390,9 @@ export function createBeatTracker(options = {}) {
         // Increase confidence
         confidence = Math.min(1, confidence + 0.05);
       }
+
+      // Record this as the last on-grid beat
+      lastOnGridTime = timestamp;
     } else {
       // ---- OFF-GRID HIT ----
       gridMisses++;
