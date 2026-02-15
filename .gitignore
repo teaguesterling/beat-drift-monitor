@@ -1,0 +1,8 @@
+# blq
+.lq/*
+!.lq/hooks/
+!.lq/config.toml
+!.lq/commands.toml
+
+# MCP config (local)
+.mcp.json

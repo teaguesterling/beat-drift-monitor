@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beat Drift Monitor - Test Harness</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --bg-secondary: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --success: #3fb950;
+    --error: #f85149;
+    --warning: #d29922;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 20px;
+  }
+
+  h1, h2, h3 { font-weight: 600; }
+  h1 { font-size: 24px; margin-bottom: 8px; }
+  h2 { font-size: 18px; margin: 24px 0 12px; color: var(--text-muted); }
+  h3 { font-size: 14px; margin: 16px 0 8px; }
+
+  .container { max-width: 1400px; margin: 0 auto; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+
+  .grid { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+
+  input, select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  .input-row { display: flex; gap: 12px; }
+  .input-row > div { flex: 1; }
+
+  button {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover { background: var(--border); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #4c8ed9; }
+
+  .scenario-list { list-style: none; }
+
+  .scenario-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .scenario-item:hover { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+  .scenario-item.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.15); }
+
+  .scenario-name { font-size: 13px; font-weight: 500; }
+  .scenario-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .scenario-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .status-pass { background: var(--success); color: #fff; }
+  .status-fail { background: var(--error); color: #fff; }
+  .status-pending { background: var(--border); color: var(--text-muted); }
+
+  .results-summary { display: flex; gap: 24px; margin-bottom: 16px; }
+  .result-stat { text-align: center; }
+  .result-stat .value { font-size: 32px; font-weight: 600; }
+  .result-stat .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .chart-container {
+    height: 200px;
+    background: var(--bg);
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .chart-container svg { width: 100%; height: 100%; }
+
+  .trace-container { max-height: 400px; overflow: auto; background: var(--bg); border-radius: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: 'SF Mono', Consolas, monospace; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--bg-secondary); position: sticky; top: 0; font-weight: 600; color: var(--text-muted); }
+  tr:hover td { background: rgba(88, 166, 255, 0.05); }
+
+  .cell-on-grid { color: var(--success); }
+  .cell-off-grid { color: var(--warning); }
+  .cell-positive { color: var(--error); }
+  .cell-negative { color: var(--accent); }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(248, 81, 73, 0.1);
+    border: 1px solid var(--error);
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .live-indicator.active { background: rgba(63, 185, 80, 0.1); border-color: var(--success); }
+
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); }
+  .live-indicator.active .live-dot { background: var(--success); animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+
+  .tab {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .export-buttons { display: flex; gap: 8px; margin-top: 12px; }
+  .export-buttons button { font-size: 12px; padding: 6px 12px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Beat Drift Monitor Test Harness</h1>
+  <p class="subtitle">Debug and test the beat tracking algorithm with synthetic and live audio</p>
+
+  <div class="grid">
+    <div class="sidebar">
+      <div class="card">
+        <h3>Test Scenarios</h3>
+        <ul class="scenario-list" id="scenario-list"></ul>
+        <button onclick="runAllScenarios()" style="width: 100%; margin-top: 8px;">Run All Tests</button>
+      </div>
+
+      <div class="card">
+        <h3>Custom Scenario</h3>
+        <div class="input-row">
+          <div>
+            <label>Start BPM</label>
+            <input type="number" id="custom-start-bpm" value="120" min="40" max="240">
+          </div>
+          <div>
+            <label>End BPM</label>
+            <input type="number" id="custom-end-bpm" value="125" min="40" max="240">
+          </div>
+        </div>
+        <div class="input-row">
+          <div>
+            <label>Beats</label>
+            <input type="number" id="custom-beats" value="64" min="16" max="256">
+          </div>
+          <div>
+            <label>Jitter (ms)</label>
+            <input type="number" id="custom-jitter" value="0" min="0" max="50">
+          </div>
+        </div>
+        <button class="primary" onclick="runCustomScenario()" style="width: 100%;">Run Custom</button>
+      </div>
+
+      <div class="card">
+        <h3>Algorithm Constants</h3>
+        <label>ADAPT_FAST</label>
+        <input type="number" id="const-adapt-fast" value="0.08" min="0.01" max="0.5" step="0.01">
+        <label>ADAPT_SLOW</label>
+        <input type="number" id="const-adapt-slow" value="0.005" min="0.001" max="0.1" step="0.001">
+        <label>GRID_TOLERANCE</label>
+        <input type="number" id="const-grid-tolerance" value="0.35" min="0.1" max="0.5" step="0.05">
+        <label>CAL_BEATS</label>
+        <input type="number" id="const-cal-beats" value="8" min="4" max="16">
+      </div>
+
+      <div class="card">
+        <h3>Live Audio</h3>
+        <div class="live-indicator" id="live-indicator">
+          <span class="live-dot"></span>
+          <span id="live-status-text">Not listening</span>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 8px;">
+          <button id="btn-start-live" onclick="toggleLive()">Start Live</button>
+          <button onclick="resetLive()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="card">
+        <div class="card-header">
+          <h3 id="results-title">Results</h3>
+          <div class="results-summary" id="results-summary"></div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="chart" onclick="switchTab('chart')">Chart</button>
+          <button class="tab" data-tab="trace" onclick="switchTab('trace')">Trace Log</button>
+          <button class="tab" data-tab="checks" onclick="switchTab('checks')">Checks</button>
+        </div>
+
+        <div id="tab-chart" class="tab-content">
+          <div class="chart-container" id="chart-container">
+            <svg id="chart-svg"></svg>
+          </div>
+        </div>
+
+        <div id="tab-trace" class="tab-content" style="display: none;">
+          <div class="trace-container">
+            <table id="trace-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Event</th>
+                  <th>Grid?</th>
+                  <th>Beat</th>
+                  <th>Offset</th>
+                  <th>Period</th>
+                  <th>Target</th>
+                  <th>BPM</th>
+                  <th>Drift</th>
+                  <th>Conf</th>
+                </tr>
+              </thead>
+              <tbody id="trace-body"></tbody>
+            </table>
+          </div>
+          <div class="export-buttons">
+            <button onclick="exportCSV()">Export CSV</button>
+            <button onclick="exportJSON()">Export JSON</button>
+          </div>
+        </div>
+
+        <div id="tab-checks" class="tab-content" style="display: none;">
+          <div id="checks-content"></div>
+        </div>
+      </div>
+
+      <div class="card" id="live-display" style="display: none;">
+        <h3>Live Tracking</h3>
+        <div style="display: flex; gap: 24px; align-items: center; margin-top: 12px;">
+          <div class="result-stat">
+            <div class="value" id="live-bpm">--</div>
+            <div class="label">Current BPM</div>
+          </div>
+          <div class="result-stat">
+            <div class="value" id="live-target">--</div>
+            <div class="label">Target BPM</div>
+          </div>
+          <div class="result-stat">
+            <div class="value" id="live-drift" style="color: var(--success);">--</div>
+            <div class="label">Drift</div>
+          </div>
+          <div class="result-stat">
+            <div class="value" id="live-confidence">--</div>
+            <div class="label">Confidence</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  createBeatTracker,
+  createTraceBuffer,
+  runScenario,
+  generatePerfectTempo,
+  generateLinearDrift,
+  generateSuddenChange,
+  generateWithMissedBeats,
+  generateWithJitter,
+  State,
+  CONSTANTS
+} from '../core/beat_tracker.js';
+
+window.createBeatTracker = createBeatTracker;
+window.createTraceBuffer = createTraceBuffer;
+window.runScenario = runScenario;
+window.State = State;
+window.CONSTANTS = CONSTANTS;
+
+// ============================================================================
+// TEST SCENARIOS
+// ============================================================================
+
+const scenarios = [
+  {
+    name: 'perfect_tempo',
+    description: 'Steady 120 BPM - expect ~0 drift',
+    generator: { type: 'perfect', bpm: 120, beats: 64 },
+    expectations: [
+      { after_onset: 20, drift_min: -0.5, drift_max: 0.5 },
+      { after_onset: 40, drift_min: -0.5, drift_max: 0.5 },
+      { after_onset: 60, drift_min: -0.5, drift_max: 0.5 }
+    ]
+  },
+  {
+    name: 'steady_rush_2bpm',
+    description: 'Calibrate 120, play 122 - expect +2 drift',
+    onsets: [
+      ...generatePerfectTempo(120, 9, 0),
+      ...generatePerfectTempo(122, 55, 4000 + 491.8)
+    ],
+    expectations: [
+      { after_onset: 20, drift_min: 1, drift_max: 3, state: 'TRACKING' },
+      { after_onset: 40, drift_min: 1.5, drift_max: 2.5 },
+      { after_onset: 60, drift_min: 1.5, drift_max: 2.5 }
+    ]
+  },
+  {
+    name: 'steady_drag_3bpm',
+    description: 'Calibrate 120, play 117 - expect -3 drift',
+    onsets: [
+      ...generatePerfectTempo(120, 9, 0),
+      ...generatePerfectTempo(117, 55, 4000 + 512.8)
+    ],
+    expectations: [
+      { after_onset: 20, drift_min: -4, drift_max: -2 },
+      { after_onset: 40, drift_min: -3.5, drift_max: -2.5 }
+    ]
+  },
+  {
+    name: 'gradual_speedup',
+    description: '120 BPM accelerating to 130 over 64 beats',
+    generator: { type: 'linear_drift', start_bpm: 120, end_bpm: 130, beats: 72 },
+    expectations: [
+      { after_onset: 20, drift_min: 0, drift_max: 4 },
+      { after_onset: 40, drift_min: 2, drift_max: 6 },
+      { after_onset: 60, drift_min: 4, drift_max: 9 }
+    ]
+  },
+  {
+    name: 'gradual_slowdown',
+    description: '120 BPM decelerating to 110 over 64 beats',
+    generator: { type: 'linear_drift', start_bpm: 120, end_bpm: 110, beats: 72 },
+    expectations: [
+      { after_onset: 20, drift_min: -4, drift_max: 0 },
+      { after_onset: 40, drift_min: -6, drift_max: -2 },
+      { after_onset: 60, drift_min: -9, drift_max: -4 }
+    ]
+  },
+  {
+    name: 'chorus_lag',
+    description: 'Verse at 120, chorus drops to 116 (drummer lags on busy kick)',
+    onsets: [
+      ...generatePerfectTempo(120, 24, 0),
+      ...generatePerfectTempo(116, 24, 12000 + 517)
+    ],
+    expectations: [
+      { after_onset: 16, drift_min: -0.5, drift_max: 0.5 },
+      { after_onset: 32, drift_min: -5, drift_max: -2 },
+      { after_onset: 44, drift_min: -5, drift_max: -3 }
+    ]
+  },
+  {
+    name: 'chorus_rush',
+    description: 'Verse at 120, chorus rushes to 126 (energy increase)',
+    onsets: [
+      ...generatePerfectTempo(120, 24, 0),
+      ...generatePerfectTempo(126, 24, 12000 + 476)
+    ],
+    expectations: [
+      { after_onset: 16, drift_min: -0.5, drift_max: 0.5 },
+      { after_onset: 32, drift_min: 3, drift_max: 7 },
+      { after_onset: 44, drift_min: 4, drift_max: 7 }
+    ]
+  },
+  {
+    name: 'recovery_from_rush',
+    description: 'Rush to 125, then recover back to 120',
+    onsets: [
+      ...generatePerfectTempo(120, 16, 0),
+      ...generatePerfectTempo(125, 16, 8000 + 480),
+      ...generatePerfectTempo(120, 16, 16000 + 500)
+    ],
+    expectations: [
+      { after_onset: 12, drift_min: -0.5, drift_max: 0.5 },
+      { after_onset: 24, drift_min: 3, drift_max: 6 },
+      { after_onset: 40, drift_min: -1, drift_max: 2 }
+    ]
+  },
+  {
+    name: 'missed_beats',
+    description: '120 BPM with every 4th beat missed',
+    onsets: generateWithMissedBeats(120, 64, [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63], 0),
+    expectations: [
+      { after_onset: 20, drift_min: -1, drift_max: 1, state: 'TRACKING' },
+      { after_onset: 40, drift_min: -1, drift_max: 1 }
+    ]
+  },
+  {
+    name: 'human_jitter_10ms',
+    description: '120 BPM with 10ms timing jitter (typical human)',
+    generator: { type: 'jitter', bpm: 120, beats: 64, jitter_ms: 10 },
+    expectations: [
+      { after_onset: 20, drift_min: -1.5, drift_max: 1.5 },
+      { after_onset: 50, drift_min: -1.5, drift_max: 1.5 }
+    ]
+  },
+  {
+    name: 'human_jitter_20ms',
+    description: '120 BPM with 20ms timing jitter (sloppy playing)',
+    generator: { type: 'jitter', bpm: 120, beats: 64, jitter_ms: 20 },
+    expectations: [
+      { after_onset: 20, drift_min: -3, drift_max: 3 },
+      { after_onset: 50, drift_min: -3, drift_max: 3 }
+    ]
+  }
+];
+
+window.scenarios = scenarios;
+
+// ============================================================================
+// UI STATE
+// ============================================================================
+
+let currentResults = null;
+let currentTab = 'chart';
+let liveTracker = null;
+let liveTrace = null;
+let isLive = false;
+let audioContext = null;
+let stream = null;
+
+// ============================================================================
+// SAFE DOM HELPERS
+// ============================================================================
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function setStyle(id, prop, value) {
+  const el = document.getElementById(id);
+  if (el) el.style[prop] = value;
+}
+
+// ============================================================================
+// RENDER FUNCTIONS
+// ============================================================================
+
+function renderScenarioList() {
+  const list = document.getElementById('scenario-list');
+  list.replaceChildren();
+
+  scenarios.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'scenario-item';
+    li.dataset.index = i;
+    li.onclick = () => selectScenario(i);
+
+    const info = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'scenario-name';
+    name.textContent = s.name;
+    const desc = document.createElement('div');
+    desc.className = 'scenario-desc';
+    desc.textContent = s.description;
+    info.appendChild(name);
+    info.appendChild(desc);
+
+    const status = document.createElement('span');
+    status.className = 'scenario-status status-pending';
+    status.id = 'status-' + i;
+    status.textContent = '--';
+
+    li.appendChild(info);
+    li.appendChild(status);
+    list.appendChild(li);
+  });
+}
+
+function renderChart(trace) {
+  const svg = document.getElementById('chart-svg');
+  const container = document.getElementById('chart-container');
+  const w = container.clientWidth || 800;
+  const h = container.clientHeight || 200;
+
+  // Clear existing
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  if (!trace || trace.length === 0) {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', w / 2);
+    text.setAttribute('y', h / 2);
+    text.setAttribute('fill', '#8b949e');
+    text.setAttribute('text-anchor', 'middle');
+    text.textContent = 'No data';
+    svg.appendChild(text);
+    return;
+  }
+
+  const trackingEntries = trace.filter(e => e.state === 'TRACKING' && e.drift !== null && e.drift !== undefined);
+
+  if (trackingEntries.length < 2) {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', w / 2);
+    text.setAttribute('y', h / 2);
+    text.setAttribute('fill', '#8b949e');
+    text.setAttribute('text-anchor', 'middle');
+    text.textContent = 'Insufficient tracking data';
+    svg.appendChild(text);
+    return;
+  }
+
+  const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+  const plotW = w - padding.left - padding.right;
+  const plotH = h - padding.top - padding.bottom;
+
+  const drifts = trackingEntries.map(e => e.drift);
+  const range = Math.max(2, Math.max(Math.abs(Math.min(...drifts)), Math.abs(Math.max(...drifts)))) * 1.2;
+
+  const xScale = (i) => padding.left + (i / (trackingEntries.length - 1)) * plotW;
+  const yScale = (d) => padding.top + plotH / 2 - (d / range) * (plotH / 2);
+
+  // Grid lines
+  [-range, -range/2, 0, range/2, range].forEach(d => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', padding.left);
+    line.setAttribute('y1', yScale(d));
+    line.setAttribute('x2', w - padding.right);
+    line.setAttribute('y2', yScale(d));
+    line.setAttribute('stroke', d === 0 ? '#30363d' : '#21262d');
+    line.setAttribute('stroke-width', d === 0 ? 2 : 1);
+    svg.appendChild(line);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', padding.left - 8);
+    text.setAttribute('y', yScale(d) + 4);
+    text.setAttribute('fill', '#8b949e');
+    text.setAttribute('font-size', '10');
+    text.setAttribute('text-anchor', 'end');
+    text.textContent = d.toFixed(1);
+    svg.appendChild(text);
+  });
+
+  // Path
+  const pathPoints = trackingEntries.map((e, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i).toFixed(1)} ${yScale(e.drift).toFixed(1)}`);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', pathPoints.join(' '));
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#c9d1d9');
+  path.setAttribute('stroke-width', '1.5');
+  svg.appendChild(path);
+
+  // Last point
+  const lastEntry = trackingEntries[trackingEntries.length - 1];
+  const lastX = xScale(trackingEntries.length - 1);
+  const lastY = yScale(lastEntry.drift);
+  const dotColor = Math.abs(lastEntry.drift) < 1 ? '#3fb950' : lastEntry.drift > 0 ? '#f85149' : '#58a6ff';
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', lastX);
+  circle.setAttribute('cy', lastY);
+  circle.setAttribute('r', '4');
+  circle.setAttribute('fill', dotColor);
+  svg.appendChild(circle);
+
+  // Labels
+  const rushLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  rushLabel.setAttribute('x', w - padding.right);
+  rushLabel.setAttribute('y', padding.top + 10);
+  rushLabel.setAttribute('fill', '#f85149');
+  rushLabel.setAttribute('font-size', '9');
+  rushLabel.setAttribute('text-anchor', 'end');
+  rushLabel.textContent = 'rush';
+  svg.appendChild(rushLabel);
+
+  const dragLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  dragLabel.setAttribute('x', w - padding.right);
+  dragLabel.setAttribute('y', h - padding.bottom - 5);
+  dragLabel.setAttribute('fill', '#58a6ff');
+  dragLabel.setAttribute('font-size', '9');
+  dragLabel.setAttribute('text-anchor', 'end');
+  dragLabel.textContent = 'drag';
+  svg.appendChild(dragLabel);
+}
+
+function renderTrace(trace) {
+  const tbody = document.getElementById('trace-body');
+  tbody.replaceChildren();
+
+  if (!trace || trace.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 11;
+    td.style.textAlign = 'center';
+    td.style.color = 'var(--text-muted)';
+    td.textContent = 'No trace data';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  trace.forEach((e, i) => {
+    const tr = document.createElement('tr');
+
+    const cells = [
+      e.onsetCount || i + 1,
+      e.timestamp?.toFixed(0) || '--',
+      e.event || e.state || '--',
+      e.onGrid === true ? 'YES' : (e.onGrid === false ? 'no' : '--'),
+      e.nearestBeat ?? '--',
+      e.offset?.toFixed(3) ?? '--',
+      e.periodAfter?.toFixed(1) ?? '--',
+      e.targetPeriodAfter?.toFixed(1) ?? '--',
+      e.currentBpm?.toFixed(1) ?? '--',
+      e.drift?.toFixed(2) ?? '--',
+      (e.confidence ?? '--') + '%'
+    ];
+
+    cells.forEach((val, ci) => {
+      const td = document.createElement('td');
+      td.textContent = val;
+
+      // Apply styling
+      if (ci === 3) { // Grid column
+        td.className = e.onGrid === true ? 'cell-on-grid' : (e.onGrid === false ? 'cell-off-grid' : '');
+      }
+      if (ci === 9) { // Drift column
+        td.className = e.drift > 0.5 ? 'cell-positive' : (e.drift < -0.5 ? 'cell-negative' : '');
+      }
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function renderChecks(checks) {
+  const container = document.getElementById('checks-content');
+  container.replaceChildren();
+
+  if (!checks || checks.length === 0) {
+    const p = document.createElement('p');
+    p.style.color = 'var(--text-muted)';
+    p.textContent = 'No expectation checks defined for this scenario';
+    container.appendChild(p);
+    return;
+  }
+
+  checks.forEach(c => {
+    const div = document.createElement('div');
+    div.style.padding = '12px';
+    div.style.border = '1px solid ' + (c.passed ? 'var(--success)' : 'var(--error)');
+    div.style.borderRadius = '4px';
+    div.style.marginBottom = '8px';
+    div.style.background = c.passed ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+
+    const title = document.createElement('strong');
+    title.textContent = 'After onset ' + c.after_onset;
+
+    const status = document.createElement('span');
+    status.style.color = c.passed ? 'var(--success)' : 'var(--error)';
+    status.textContent = c.passed ? 'PASS' : 'FAIL';
+
+    header.appendChild(title);
+    header.appendChild(status);
+    div.appendChild(header);
+
+    const details = document.createElement('div');
+    details.style.fontSize = '12px';
+    details.style.marginTop = '8px';
+    details.style.color = 'var(--text-muted)';
+
+    const expected = document.createElement('div');
+    expected.textContent = 'Expected drift: ' + (c.expected.drift_min ?? '-Inf') + ' to ' + (c.expected.drift_max ?? '+Inf');
+    details.appendChild(expected);
+
+    const actual = document.createElement('div');
+    actual.textContent = 'Actual drift: ' + c.actual.drift;
+    details.appendChild(actual);
+
+    if (c.error) {
+      const err = document.createElement('div');
+      err.style.color = 'var(--error)';
+      err.style.marginTop = '4px';
+      err.textContent = c.error;
+      details.appendChild(err);
+    }
+
+    div.appendChild(details);
+    container.appendChild(div);
+  });
+}
+
+function updateResultsSummary(results) {
+  const summary = document.getElementById('results-summary');
+  summary.replaceChildren();
+  setText('results-title', results ? 'Results: ' + results.scenario : 'Results');
+
+  if (!results) return;
+
+  const passedChecks = results.checks.filter(c => c.passed).length;
+  const totalChecks = results.checks.length;
+
+  const stats = [
+    { value: results.passed ? 'PASS' : 'FAIL', label: 'Status', color: results.passed ? 'var(--success)' : 'var(--error)' },
+    { value: passedChecks + '/' + totalChecks, label: 'Checks' },
+    { value: results.trace.length, label: 'Onsets' },
+    { value: results.finalState?.gridHits || 0, label: 'Grid Hits' }
+  ];
+
+  stats.forEach(s => {
+    const stat = document.createElement('div');
+    stat.className = 'result-stat';
+
+    const val = document.createElement('div');
+    val.className = 'value';
+    val.textContent = s.value;
+    if (s.color) val.style.color = s.color;
+
+    const lbl = document.createElement('div');
+    lbl.className = 'label';
+    lbl.textContent = s.label;
+
+    stat.appendChild(val);
+    stat.appendChild(lbl);
+    summary.appendChild(stat);
+  });
+}
+
+// ============================================================================
+// ACTIONS
+// ============================================================================
+
+window.selectScenario = function(index) {
+  document.querySelectorAll('.scenario-item').forEach((el, i) => {
+    el.classList.toggle('selected', i === index);
+  });
+
+  const constants = getCustomConstants();
+  const scenario = scenarios[index];
+  const results = runScenario(scenario, { constants });
+
+  const statusEl = document.getElementById('status-' + index);
+  statusEl.textContent = results.passed ? 'PASS' : 'FAIL';
+  statusEl.className = 'scenario-status ' + (results.passed ? 'status-pass' : 'status-fail');
+
+  currentResults = results;
+  updateResultsSummary(results);
+  renderChart(results.trace);
+  renderTrace(results.trace);
+  renderChecks(results.checks);
+};
+
+window.runAllScenarios = function() {
+  const constants = getCustomConstants();
+  let passed = 0;
+
+  scenarios.forEach((scenario, i) => {
+    const results = runScenario(scenario, { constants });
+    const statusEl = document.getElementById('status-' + i);
+    statusEl.textContent = results.passed ? 'PASS' : 'FAIL';
+    statusEl.className = 'scenario-status ' + (results.passed ? 'status-pass' : 'status-fail');
+    if (results.passed) passed++;
+  });
+
+  alert('Tests complete: ' + passed + '/' + scenarios.length + ' passed');
+};
+
+window.runCustomScenario = function() {
+  const startBpm = parseFloat(document.getElementById('custom-start-bpm').value);
+  const endBpm = parseFloat(document.getElementById('custom-end-bpm').value);
+  const beats = parseInt(document.getElementById('custom-beats').value);
+  const jitter = parseFloat(document.getElementById('custom-jitter').value);
+  const constants = getCustomConstants();
+
+  let onsets;
+  if (startBpm === endBpm && jitter === 0) {
+    onsets = generatePerfectTempo(startBpm, beats, 0);
+  } else if (startBpm === endBpm) {
+    onsets = generateWithJitter(startBpm, beats, jitter, 0);
+  } else if (jitter === 0) {
+    onsets = generateLinearDrift(startBpm, endBpm, beats, 0);
+  } else {
+    const base = generateLinearDrift(startBpm, endBpm, beats, 0);
+    onsets = base.map(t => t + (Math.random() - 0.5) * 2 * jitter);
+  }
+
+  const scenario = {
+    name: 'custom',
+    description: startBpm + ' -> ' + endBpm + ' BPM, ' + beats + ' beats, ' + jitter + 'ms jitter',
+    onsets,
+    expectations: []
+  };
+
+  const results = runScenario(scenario, { constants });
+
+  currentResults = results;
+  updateResultsSummary(results);
+  renderChart(results.trace);
+  renderTrace(results.trace);
+  renderChecks([]);
+
+  document.querySelectorAll('.scenario-item').forEach(el => el.classList.remove('selected'));
+};
+
+function getCustomConstants() {
+  return {
+    ADAPT_FAST: parseFloat(document.getElementById('const-adapt-fast').value),
+    ADAPT_SLOW: parseFloat(document.getElementById('const-adapt-slow').value),
+    GRID_TOLERANCE: parseFloat(document.getElementById('const-grid-tolerance').value),
+    CAL_BEATS: parseInt(document.getElementById('const-cal-beats').value)
+  };
+}
+
+window.switchTab = function(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('tab-' + tab).style.display = 'block';
+};
+
+window.exportCSV = function() {
+  if (!currentResults) return;
+  const trace = createTraceBuffer();
+  currentResults.trace.forEach(e => trace.add(e));
+  downloadFile('trace.csv', trace.toCSV(), 'text/csv');
+};
+
+window.exportJSON = function() {
+  if (!currentResults) return;
+  downloadFile('results.json', JSON.stringify(currentResults, null, 2), 'application/json');
+};
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// LIVE AUDIO
+// ============================================================================
+
+window.toggleLive = async function() {
+  if (isLive) {
+    stopLive();
+  } else {
+    await startLive();
+  }
+};
+
+async function startLive() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
+    const source = audioContext.createMediaStreamSource(stream);
+
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 150;
+    filter.Q.value = 0.7;
+
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0;
+
+    source.connect(filter);
+    filter.connect(analyser);
+
+    const buf = new Float32Array(analyser.fftSize);
+    let energyHistory = [];
+    let lastOnsetTime = 0;
+
+    const constants = getCustomConstants();
+    liveTrace = createTraceBuffer(1000);
+
+    liveTracker = createBeatTracker({
+      onUpdate: (data) => {
+        setText('live-bpm', data.currentBpm?.toFixed(1) || '--');
+        setText('live-target', data.targetBpm?.toFixed(1) || '--');
+        setText('live-drift', data.drift?.toFixed(1) || '--');
+        setText('live-confidence', data.confidence + '%');
+
+        const driftEl = document.getElementById('live-drift');
+        if (driftEl) {
+          driftEl.style.color = Math.abs(data.drift) < 1.5 ? 'var(--success)' :
+                                data.drift > 0 ? 'var(--error)' : 'var(--accent)';
+        }
+      },
+      trace: liveTrace,
+      constants
+    });
+
+    liveTracker.reset();
+
+    function tick() {
+      if (!isLive) return;
+
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const energy = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+
+      energyHistory.push(energy);
+      if (energyHistory.length > 40) energyHistory.shift();
+
+      const avg = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length;
+
+      if (energy > avg * 1.5 && energy > 0.004 && now - lastOnsetTime > 100) {
+        lastOnsetTime = now;
+        liveTracker.addOnset(now);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    isLive = true;
+    document.getElementById('live-indicator').classList.add('active');
+    setText('live-status-text', 'Listening...');
+    setText('btn-start-live', 'Stop');
+    document.getElementById('live-display').style.display = 'block';
+
+    requestAnimationFrame(tick);
+
+  } catch (err) {
+    alert('Error accessing microphone: ' + err.message);
+  }
+}
+
+function stopLive() {
+  isLive = false;
+
+  if (liveTracker) {
+    liveTracker.destroy();
+    liveTracker = null;
+  }
+
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+
+  document.getElementById('live-indicator').classList.remove('active');
+  setText('live-status-text', 'Not listening');
+  setText('btn-start-live', 'Start Live');
+
+  if (liveTrace && liveTrace.length > 0) {
+    currentResults = {
+      scenario: 'live',
+      trace: liveTrace.getAll(),
+      checks: [],
+      passed: true,
+      finalState: null
+    };
+    updateResultsSummary(currentResults);
+    renderChart(currentResults.trace);
+    renderTrace(currentResults.trace);
+  }
+}
+
+window.resetLive = function() {
+  if (liveTracker) liveTracker.reset();
+  if (liveTrace) liveTrace.clear();
+};
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+renderScenarioList();
+</script>
+
+</body>
+</html>

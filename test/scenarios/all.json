@@ -1,0 +1,180 @@
+{
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "name": "perfect_tempo",
+      "description": "Steady 120 BPM - expect ~0 drift",
+      "generator": { "type": "perfect", "bpm": 120, "beats": 64 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 40, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 60, "drift_min": -0.5, "drift_max": 0.5 }
+      ]
+    },
+    {
+      "name": "steady_rush_2bpm",
+      "description": "Calibrate 120, play 122 - expect +2 drift",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 120,
+        "calibration_beats": 9,
+        "play_bpm": 122,
+        "play_beats": 55
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 1, "drift_max": 3, "state": "TRACKING" },
+        { "after_onset": 40, "drift_min": 1.5, "drift_max": 2.5 },
+        { "after_onset": 60, "drift_min": 1.5, "drift_max": 2.5 }
+      ]
+    },
+    {
+      "name": "steady_drag_3bpm",
+      "description": "Calibrate 120, play 117 - expect -3 drift",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 120,
+        "calibration_beats": 9,
+        "play_bpm": 117,
+        "play_beats": 55
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -4, "drift_max": -2 },
+        { "after_onset": 40, "drift_min": -3.5, "drift_max": -2.5 }
+      ]
+    },
+    {
+      "name": "gradual_speedup",
+      "description": "120 BPM accelerating to 130 over 64 beats",
+      "generator": { "type": "linear_drift", "start_bpm": 120, "end_bpm": 130, "beats": 72 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 0, "drift_max": 4 },
+        { "after_onset": 40, "drift_min": 2, "drift_max": 6 },
+        { "after_onset": 60, "drift_min": 4, "drift_max": 9 }
+      ]
+    },
+    {
+      "name": "gradual_slowdown",
+      "description": "120 BPM decelerating to 110 over 64 beats",
+      "generator": { "type": "linear_drift", "start_bpm": 120, "end_bpm": 110, "beats": 72 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -4, "drift_max": 0 },
+        { "after_onset": 40, "drift_min": -6, "drift_max": -2 },
+        { "after_onset": 60, "drift_min": -9, "drift_max": -4 }
+      ]
+    },
+    {
+      "name": "chorus_lag",
+      "description": "Verse at 120, chorus drops to 116 (drummer lags on busy kick)",
+      "generator": {
+        "type": "section_change",
+        "section1_bpm": 120,
+        "section1_beats": 24,
+        "section2_bpm": 116,
+        "section2_beats": 24
+      },
+      "expectations": [
+        { "after_onset": 16, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 32, "drift_min": -5, "drift_max": -2 },
+        { "after_onset": 44, "drift_min": -5, "drift_max": -3 }
+      ]
+    },
+    {
+      "name": "chorus_rush",
+      "description": "Verse at 120, chorus rushes to 126 (energy increase)",
+      "generator": {
+        "type": "section_change",
+        "section1_bpm": 120,
+        "section1_beats": 24,
+        "section2_bpm": 126,
+        "section2_beats": 24
+      },
+      "expectations": [
+        { "after_onset": 16, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 32, "drift_min": 3, "drift_max": 7 },
+        { "after_onset": 44, "drift_min": 4, "drift_max": 7 }
+      ]
+    },
+    {
+      "name": "recovery_from_rush",
+      "description": "Rush to 125, then recover back to 120",
+      "generator": {
+        "type": "three_section",
+        "section1_bpm": 120,
+        "section1_beats": 16,
+        "section2_bpm": 125,
+        "section2_beats": 16,
+        "section3_bpm": 120,
+        "section3_beats": 16
+      },
+      "expectations": [
+        { "after_onset": 12, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 24, "drift_min": 3, "drift_max": 6 },
+        { "after_onset": 40, "drift_min": -1, "drift_max": 2 }
+      ]
+    },
+    {
+      "name": "missed_beats",
+      "description": "120 BPM with every 4th beat missed",
+      "generator": {
+        "type": "missed_beats",
+        "bpm": 120,
+        "beats": 64,
+        "miss_indices": [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63]
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -1, "drift_max": 1, "state": "TRACKING" },
+        { "after_onset": 40, "drift_min": -1, "drift_max": 1 }
+      ]
+    },
+    {
+      "name": "human_jitter_10ms",
+      "description": "120 BPM with 10ms timing jitter (typical human)",
+      "generator": { "type": "jitter", "bpm": 120, "beats": 64, "jitter_ms": 10 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -1.5, "drift_max": 1.5 },
+        { "after_onset": 50, "drift_min": -1.5, "drift_max": 1.5 }
+      ]
+    },
+    {
+      "name": "human_jitter_20ms",
+      "description": "120 BPM with 20ms timing jitter (sloppy playing)",
+      "generator": { "type": "jitter", "bpm": 120, "beats": 64, "jitter_ms": 20 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -3, "drift_max": 3 },
+        { "after_onset": 50, "drift_min": -3, "drift_max": 3 }
+      ]
+    },
+    {
+      "name": "increasing_speedup",
+      "description": "Exponential tempo increase - rushes harder over time",
+      "generator": {
+        "type": "exponential_drift",
+        "start_bpm": 120,
+        "end_bpm": 135,
+        "beats": 64,
+        "curve": "exponential"
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 0, "drift_max": 3 },
+        { "after_onset": 40, "drift_min": 3, "drift_max": 8 },
+        { "after_onset": 60, "drift_min": 8, "drift_max": 15 }
+      ]
+    },
+    {
+      "name": "bridge_slowdown",
+      "description": "Sudden slowdown at bridge (drummer pulls back for dynamics)",
+      "generator": {
+        "type": "section_change",
+        "section1_bpm": 125,
+        "section1_beats": 32,
+        "section2_bpm": 118,
+        "section2_beats": 32
+      },
+      "expectations": [
+        { "after_onset": 24, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 40, "drift_min": -8, "drift_max": -4 },
+        { "after_onset": 56, "drift_min": -8, "drift_max": -5 }
+      ]
+    }
+  ]
+}

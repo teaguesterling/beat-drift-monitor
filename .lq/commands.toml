@@ -1,0 +1,4 @@
+[commands.test]
+cmd = "node test/run_tests.js"
+description = "Run beat tracker algorithm tests"
+format = "auto"
