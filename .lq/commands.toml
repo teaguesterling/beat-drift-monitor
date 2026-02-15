@@ -12,3 +12,13 @@ format = "auto"
 tpl = "node test/run_tests.js --scenario={scenario} --verbose"
 description = "Run a specific test scenario with verbose output"
 format = "auto"
+
+[commands.validate]
+cmd = "node test/run_tests.js --suite=validation"
+description = "Run validation suite (stress tests with varied parameters)"
+format = "auto"
+
+[commands.test-all]
+cmd = "node test/run_tests.js && node test/run_tests.js --suite=validation"
+description = "Run both test and validation suites"
+format = "auto"

@@ -1,0 +1,229 @@
+{
+  "version": "1.0.0",
+  "description": "Validation suite - stress tests with varied parameters to avoid overfitting",
+  "scenarios": [
+    {
+      "name": "val_perfect_90bpm",
+      "description": "Steady 90 BPM (slower tempo)",
+      "generator": { "type": "perfect", "bpm": 90, "beats": 48 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 40, "drift_min": -0.5, "drift_max": 0.5 }
+      ]
+    },
+    {
+      "name": "val_perfect_150bpm",
+      "description": "Steady 150 BPM (faster tempo)",
+      "generator": { "type": "perfect", "bpm": 150, "beats": 80 },
+      "expectations": [
+        { "after_onset": 30, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 60, "drift_min": -0.5, "drift_max": 0.5 }
+      ]
+    },
+    {
+      "name": "val_rush_1bpm_at_100",
+      "description": "Small drift: 100 -> 101 BPM (+1)",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 100,
+        "calibration_beats": 9,
+        "play_bpm": 101,
+        "play_beats": 48
+      },
+      "expectations": [
+        { "after_onset": 30, "drift_min": 0.5, "drift_max": 1.5 },
+        { "after_onset": 50, "drift_min": 0.8, "drift_max": 1.2 }
+      ]
+    },
+    {
+      "name": "val_drag_5bpm_at_140",
+      "description": "Larger drift at fast tempo: 140 -> 135 BPM (-5)",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 140,
+        "calibration_beats": 9,
+        "play_bpm": 135,
+        "play_beats": 55
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -5, "drift_max": -2 },
+        { "after_onset": 50, "drift_min": -5.5, "drift_max": -4 }
+      ]
+    },
+    {
+      "name": "val_rush_8bpm_at_85",
+      "description": "Large drift at slow tempo: 85 -> 93 BPM (+8)",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 85,
+        "calibration_beats": 9,
+        "play_bpm": 93,
+        "play_beats": 40
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 3, "drift_max": 7 },
+        { "after_onset": 40, "drift_min": 6, "drift_max": 9 }
+      ]
+    },
+    {
+      "name": "val_gradual_speedup_slow",
+      "description": "Gradual acceleration from 80 to 88 BPM over 56 beats",
+      "generator": { "type": "linear_drift", "start_bpm": 80, "end_bpm": 88, "beats": 64 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 0, "drift_max": 3 },
+        { "after_onset": 50, "drift_min": 3, "drift_max": 7 }
+      ]
+    },
+    {
+      "name": "val_gradual_slowdown_fast",
+      "description": "Gradual deceleration from 160 to 150 BPM",
+      "generator": { "type": "linear_drift", "start_bpm": 160, "end_bpm": 150, "beats": 72 },
+      "expectations": [
+        { "after_onset": 25, "drift_min": -4, "drift_max": 0 },
+        { "after_onset": 55, "drift_min": -8, "drift_max": -4 }
+      ]
+    },
+    {
+      "name": "val_section_change_110_to_105",
+      "description": "Section change: 110 -> 105 BPM at bar 16",
+      "generator": {
+        "type": "section_change",
+        "section1_bpm": 110,
+        "section1_beats": 32,
+        "section2_bpm": 105,
+        "section2_beats": 32
+      },
+      "expectations": [
+        { "after_onset": 24, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 48, "drift_min": -5, "drift_max": -2 }
+      ]
+    },
+    {
+      "name": "val_section_change_95_to_102",
+      "description": "Section change: 95 -> 102 BPM (bridge to chorus)",
+      "generator": {
+        "type": "section_change",
+        "section1_bpm": 95,
+        "section1_beats": 24,
+        "section2_bpm": 102,
+        "section2_beats": 32
+      },
+      "expectations": [
+        { "after_onset": 16, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 40, "drift_min": 4, "drift_max": 8 }
+      ]
+    },
+    {
+      "name": "val_three_section_tempo_journey",
+      "description": "130 -> 138 -> 132 BPM (verse/chorus/verse)",
+      "generator": {
+        "type": "three_section",
+        "section1_bpm": 130,
+        "section1_beats": 16,
+        "section2_bpm": 138,
+        "section2_beats": 24,
+        "section3_bpm": 132,
+        "section3_beats": 24
+      },
+      "expectations": [
+        { "after_onset": 12, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 32, "drift_min": 5, "drift_max": 9 },
+        { "after_onset": 56, "drift_min": 0, "drift_max": 4 }
+      ]
+    },
+    {
+      "name": "val_missed_every_3rd",
+      "description": "100 BPM with every 3rd beat missed",
+      "generator": {
+        "type": "missed_beats",
+        "bpm": 100,
+        "beats": 48,
+        "miss_indices": [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47]
+      },
+      "expectations": [
+        { "after_onset": 15, "drift_min": -1.5, "drift_max": 1.5, "state": "TRACKING" },
+        { "after_onset": 28, "drift_min": -1.5, "drift_max": 1.5 }
+      ]
+    },
+    {
+      "name": "val_missed_consecutive",
+      "description": "120 BPM with 2 consecutive beats missed (simulates fill)",
+      "generator": {
+        "type": "missed_beats",
+        "bpm": 120,
+        "beats": 48,
+        "miss_indices": [15, 16, 31, 32]
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -1, "drift_max": 1, "state": "TRACKING" },
+        { "after_onset": 40, "drift_min": -1, "drift_max": 1 }
+      ]
+    },
+    {
+      "name": "val_jitter_15ms_at_130",
+      "description": "130 BPM with 15ms jitter",
+      "generator": { "type": "jitter", "bpm": 130, "beats": 64, "jitter_ms": 15 },
+      "expectations": [
+        { "after_onset": 25, "drift_min": -3, "drift_max": 3 },
+        { "after_onset": 50, "drift_min": -3, "drift_max": 3 }
+      ]
+    },
+    {
+      "name": "val_jitter_25ms_at_90",
+      "description": "90 BPM with 25ms jitter (sloppy slow playing)",
+      "generator": { "type": "jitter", "bpm": 90, "beats": 48, "jitter_ms": 25 },
+      "expectations": [
+        { "after_onset": 20, "drift_min": -4, "drift_max": 4 },
+        { "after_onset": 40, "drift_min": -4, "drift_max": 4 }
+      ]
+    },
+    {
+      "name": "val_exponential_rush_75_to_85",
+      "description": "Exponential speedup: 75 -> 85 BPM (accelerating rush)",
+      "generator": {
+        "type": "exponential_drift",
+        "start_bpm": 75,
+        "end_bpm": 85,
+        "beats": 56,
+        "curve": "exponential"
+      },
+      "expectations": [
+        { "after_onset": 20, "drift_min": 0, "drift_max": 3 },
+        { "after_onset": 45, "drift_min": 3, "drift_max": 10 }
+      ]
+    },
+    {
+      "name": "val_tiny_drift_detection",
+      "description": "Can we detect 0.5 BPM drift? 120 -> 120.5",
+      "generator": {
+        "type": "two_tempo",
+        "calibration_bpm": 120,
+        "calibration_beats": 9,
+        "play_bpm": 120.5,
+        "play_beats": 80
+      },
+      "expectations": [
+        { "after_onset": 50, "drift_min": 0.2, "drift_max": 0.8 },
+        { "after_onset": 80, "drift_min": 0.3, "drift_max": 0.7 }
+      ]
+    },
+    {
+      "name": "val_edge_slow_60bpm",
+      "description": "Edge case: very slow 60 BPM",
+      "generator": { "type": "perfect", "bpm": 60, "beats": 32 },
+      "expectations": [
+        { "after_onset": 15, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 28, "drift_min": -0.5, "drift_max": 0.5 }
+      ]
+    },
+    {
+      "name": "val_edge_fast_200bpm",
+      "description": "Edge case: very fast 200 BPM",
+      "generator": { "type": "perfect", "bpm": 200, "beats": 96 },
+      "expectations": [
+        { "after_onset": 40, "drift_min": -0.5, "drift_max": 0.5 },
+        { "after_onset": 80, "drift_min": -0.5, "drift_max": 0.5 }
+      ]
+    }
+  ]
+}

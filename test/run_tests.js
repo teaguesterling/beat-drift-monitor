@@ -7,7 +7,8 @@
  * Outputs results in a format compatible with standard test runners.
  *
  * Usage:
- *   node run_tests.js                    # Run all tests
+ *   node run_tests.js                    # Run all tests (all.json)
+ *   node run_tests.js --suite=validation # Run validation suite
  *   node run_tests.js --scenario=name    # Run specific scenario
  *   node run_tests.js --verbose          # Show trace details
  *   node run_tests.js --json             # Output JSON results
@@ -276,9 +277,11 @@ function main() {
   const verbose = args.includes('--verbose') || args.includes('-v');
   const jsonOutput = args.includes('--json');
   const scenarioFilter = args.find(a => a.startsWith('--scenario='))?.split('=')[1];
+  const suiteArg = args.find(a => a.startsWith('--suite='))?.split('=')[1];
 
-  // Load scenarios
-  const scenariosPath = join(__dirname, 'scenarios', 'all.json');
+  // Load scenarios from specified suite (default: all.json)
+  const suiteName = suiteArg || 'all';
+  const scenariosPath = join(__dirname, 'scenarios', `${suiteName}.json`);
   let scenariosData;
 
   try {
