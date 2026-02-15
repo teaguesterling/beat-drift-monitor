@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Stonefish Drift Monitor v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
+    touch-action: manipulation;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+    position: relative;
+  }
+
+  /* Beat flash overlay */
+  #beat-flash {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    border: 3px solid rgba(255, 255, 255, 0);
+    pointer-events: none;
+    transition: border-color 80ms ease-out;
+    z-index: 100;
+  }
+  #beat-flash.flash { border-color: rgba(255, 255, 255, 0.15); }
+
+  /* Main layout */
+  .main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  /* State badge */
+  .state-badge {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: all 300ms;
+  }
+  .state-IDLE { color: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.05); }
+  .state-CALIBRATING { color: #6ba3ff; border-color: rgba(107,163,255,0.2); }
+  .state-TRACKING { color: #00ff88; border-color: rgba(0,255,136,0.2); }
+  .state-WAITING { color: #ff9f43; border-color: rgba(255,159,67,0.2); }
+
+  /* Large ring metronome */
+  .metronome-container {
+    position: relative;
+    width: clamp(200px, 60vw, 280px);
+    height: clamp(200px, 60vw, 280px);
+  }
+
+  .metronome-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .metronome-track {
+    fill: none;
+    stroke: #1a1a2e;
+    stroke-width: 8;
+  }
+
+  .metronome-progress {
+    fill: none;
+    stroke: #00ff88;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 565; /* 2 * PI * 90 */
+    stroke-dashoffset: 565;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 40ms linear, stroke 200ms;
+  }
+
+  .metronome-progress.rushing { stroke: #ff6b6b; }
+  .metronome-progress.dragging { stroke: #6ba3ff; }
+
+  .metronome-beat {
+    fill: #1a1a2e;
+    transition: fill 80ms, transform 80ms;
+  }
+  .metronome-beat.flash {
+    fill: #00ff88;
+  }
+
+  .metronome-count {
+    fill: white;
+    font-size: 48px;
+    font-weight: 200;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+
+  /* Drift display in center */
+  .drift-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .drift-value {
+    font-size: clamp(36px, 10vw, 48px);
+    font-weight: 200;
+    color: #00ff88;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    transition: color 200ms;
+  }
+  .drift-value.rushing { color: #ff6b6b; }
+  .drift-value.dragging { color: #6ba3ff; }
+
+  .drift-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .bpm-display {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tempo multiple indicator */
+  .tempo-multiple {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: all 200ms;
+    opacity: 0;
+  }
+  .tempo-multiple.visible { opacity: 1; }
+  .tempo-multiple.normal { background: rgba(63, 185, 80, 0.15); color: #00ff88; }
+  .tempo-multiple.half-time { background: rgba(88, 166, 255, 0.15); color: #6ba3ff; }
+  .tempo-multiple.double-time { background: rgba(210, 153, 34, 0.15); color: #ff9f43; }
+
+  /* LED strip - simplified */
+  .led-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+  }
+
+  .led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #1a1a2e;
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: all 80ms ease-out;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .btn {
+    padding: 16px 40px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    font-family: inherit;
+    transition: all 100ms;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-start { background: rgba(0,255,136,0.15); color: #00ff88; }
+  .btn-stop { background: rgba(255,80,80,0.2); color: #ff6b6b; }
+
+  .btn-secondary {
+    padding: 14px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: #888;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 1px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .btn-secondary:active { background: rgba(255,255,255,0.12); transform: scale(0.96); }
+
+  /* Tap area for calibration */
+  .tap-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: rgba(255,255,255,0.15);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .tap-area:active { background: rgba(255,255,255,0.03); }
+
+  /* Calibration overlay */
+  .calibration-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .calibration-count {
+    font-size: clamp(48px, 15vw, 72px);
+    font-weight: 200;
+    color: rgba(255,255,255,0.25);
+    line-height: 1;
+  }
+
+  .calibration-label {
+    font-size: 10px;
+    color: rgba(107, 163, 255, 0.6);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  /* Waiting state */
+  @keyframes waitPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+  .waiting-pulse { animation: waitPulse 2s ease-in-out infinite; }
+
+  /* Hide elements based on state */
+  .hidden { display: none !important; }
+
+  /* Prevent scrolling */
+  body { overscroll-behavior: none; }
+
+  /* Landscape adjustments */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .metronome-container { width: 160px; height: 160px; }
+    .main { gap: 12px; }
+    .tap-area { height: 50px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="beat-flash"></div>
+
+<div class="main">
+  <div class="state-badge state-IDLE" id="state-badge">IDLE</div>
+
+  <div class="metronome-container" id="metronome-container">
+    <svg class="metronome-svg" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="90" class="metronome-track" />
+      <circle cx="100" cy="100" r="90" class="metronome-progress" id="metronome-progress" />
+      <circle cx="100" cy="100" r="60" class="metronome-beat" id="metronome-beat" />
+    </svg>
+
+    <!-- Drift display overlay -->
+    <div class="drift-display" id="drift-display">
+      <div class="drift-value" id="drift-value">--</div>
+      <div class="drift-label" id="drift-label">BPM</div>
+      <div class="bpm-display" id="bpm-display"></div>
+    </div>
+
+    <!-- Calibration overlay -->
+    <div class="calibration-overlay hidden" id="calibration-overlay">
+      <div class="calibration-count" id="calibration-count">0/8</div>
+      <div class="calibration-label">Calibrating</div>
+    </div>
+  </div>
+
+  <div class="tempo-multiple" id="tempo-multiple">normal</div>
+
+  <div class="led-strip" id="led-strip"></div>
+
+  <div class="controls" id="controls">
+    <button class="btn btn-start" id="btn-main" onclick="toggleListening()">START</button>
+  </div>
+</div>
+
+<div class="tap-area" id="tap-area" onclick="handleTap()">
+  Tap to set tempo
+</div>
+
+<script>
+// ================================================================
+// STATE
+// ================================================================
+
+const State = {
+  IDLE: 'IDLE',
+  CALIBRATING: 'CALIBRATING',
+  TRACKING: 'TRACKING',
+  WAITING: 'WAITING'
+};
+
+let isListening = false;
+let audioContext = null;
+let stream = null;
+let detector = null;
+let beatTracker = null;
+const LED_COUNT = 13;
+const MAX_DRIFT = 8;
+
+// Metronome animation
+let metronomeLastOnsetTime = 0;
+let metronomePeriod = 500;
+let metronomeBeatCounter = 0;
+let metronomeAnimationId = null;
+
+// ================================================================
+// BEAT GRID TRACKER
+// ================================================================
+
+function createBeatTracker(onUpdate) {
+  let period = 0;
+  let phase = 0;
+  let targetPeriod = 0;
+  let confidence = 0;
+  let lastOnGridTime = 0;
+
+  const CAL_BEATS = 8;
+  let calOnsets = [];
+  let state = State.IDLE;
+
+  const ADAPT_FAST = 0.08;
+  const GRID_TOLERANCE = 0.35;
+  const SILENCE_TIMEOUT_MS = 4000;
+  const MIN_PERIOD_MS = 200;
+  const MAX_PERIOD_MS = 1500;
+  const PERIOD_HISTORY = 12;
+  const BEAT_POSITION_HISTORY = 16;
+
+  let lastOnsetTime = 0;
+  let silenceCheckInterval = null;
+  let recentPeriods = [];
+  let onsetCount = 0;
+  let gridHits = 0;
+  let gridMisses = 0;
+
+  // Tempo multiple detection
+  let recentBeatPositions = [];
+  let tempoMultiple = 1;
+  let tempoMultipleConfidence = 0;
+
+  function getTempoMultipleLabel() {
+    if (tempoMultiple === 0.5) return 'half-time';
+    if (tempoMultiple === 2) return 'double-time';
+    return 'normal';
+  }
+
+  function reset() {
+    period = 0;
+    phase = 0;
+    targetPeriod = 0;
+    confidence = 0;
+    lastOnGridTime = 0;
+    calOnsets = [];
+    recentPeriods = [];
+    onsetCount = 0;
+    gridHits = 0;
+    gridMisses = 0;
+    recentBeatPositions = [];
+    tempoMultiple = 1;
+    tempoMultipleConfidence = 0;
+    state = State.CALIBRATING;
+    emitUpdate();
+  }
+
+  function enterWaiting() {
+    state = State.WAITING;
+    confidence = 0;
+    emitUpdate();
+  }
+
+  function startSilenceWatch() {
+    if (silenceCheckInterval) clearInterval(silenceCheckInterval);
+    silenceCheckInterval = setInterval(function() {
+      if (!isListening || state === State.IDLE) return;
+      const now = performance.now();
+      const gap = now - lastOnsetTime;
+      if (lastOnsetTime > 0 && gap > SILENCE_TIMEOUT_MS) {
+        if (state === State.TRACKING || state === State.CALIBRATING) {
+          enterWaiting();
+        }
+      }
+    }, 500);
+  }
+
+  function stopSilenceWatch() {
+    if (silenceCheckInterval) {
+      clearInterval(silenceCheckInterval);
+      silenceCheckInterval = null;
+    }
+  }
+
+  function findDominantPeriod(intervals) {
+    if (intervals.length === 0) return 0;
+    const sorted = intervals.slice().sort(function(a, b) { return a - b; });
+    const valid = sorted.filter(function(i) { return i > MIN_PERIOD_MS && i < 2000; });
+    if (valid.length === 0) return 0;
+
+    const candidates = valid.slice(0, Math.max(1, Math.ceil(valid.length * 0.6)));
+    const candidateMedian = candidates[Math.floor(candidates.length / 2)];
+
+    let score = 0;
+    for (let j = 0; j < valid.length; j++) {
+      const iv = valid[j];
+      const ratio = iv / candidateMedian;
+      const nearestInt = Math.round(ratio);
+      const fractionalError = Math.abs(ratio - nearestInt);
+      if (fractionalError < 0.15 && nearestInt >= 1 && nearestInt <= 4) score++;
+    }
+
+    return score >= valid.length * 0.5 ? candidateMedian : valid[Math.floor(valid.length / 2)];
+  }
+
+  function addOnset(timestamp) {
+    lastOnsetTime = timestamp;
+    onsetCount++;
+
+    if (state === State.WAITING) {
+      calOnsets = [timestamp];
+      state = State.CALIBRATING;
+      emitUpdate();
+      return;
+    }
+
+    if (state === State.CALIBRATING) {
+      calOnsets.push(timestamp);
+      if (calOnsets.length < CAL_BEATS + 1) {
+        emitUpdate();
+        return;
+      }
+
+      const intervals = [];
+      for (let i = 1; i < calOnsets.length; i++) {
+        intervals.push(calOnsets[i] - calOnsets[i - 1]);
+      }
+
+      const basePeriod = findDominantPeriod(intervals);
+      if (basePeriod > 0) {
+        period = basePeriod;
+        targetPeriod = basePeriod;
+        phase = timestamp;
+        confidence = 0.5;
+        recentPeriods = [basePeriod];
+        lastOnGridTime = timestamp;
+        state = State.TRACKING;
+      }
+      emitUpdate();
+      return;
+    }
+
+    if (state !== State.TRACKING || period === 0) return;
+
+    const timeSincePhase = timestamp - phase;
+    const beatFraction = timeSincePhase / period;
+    const nearestBeat = Math.round(beatFraction);
+    const offset = beatFraction - nearestBeat;
+    const absOffset = Math.abs(offset);
+
+    let onGrid = false;
+
+    if (absOffset < GRID_TOLERANCE) {
+      onGrid = true;
+      gridHits++;
+
+      let impliedPeriod = 0;
+      if (lastOnGridTime > 0) {
+        const actualInterval = timestamp - lastOnGridTime;
+        const estimatedBeats = Math.max(1, Math.round(actualInterval / period));
+        impliedPeriod = actualInterval / estimatedBeats;
+      } else {
+        impliedPeriod = timeSincePhase / nearestBeat;
+      }
+
+      if (impliedPeriod > MIN_PERIOD_MS && impliedPeriod < MAX_PERIOD_MS) {
+        period = period + ADAPT_FAST * (impliedPeriod - period);
+        phase = timestamp - (nearestBeat * period) + (offset * period * 0.3);
+        recentPeriods.push(impliedPeriod);
+        if (recentPeriods.length > PERIOD_HISTORY) recentPeriods.shift();
+        confidence = Math.min(1, confidence + 0.05);
+      }
+
+      lastOnGridTime = timestamp;
+    } else {
+      gridMisses++;
+      confidence = Math.max(0, confidence - 0.02);
+    }
+
+    // Track beat positions for tempo multiple detection
+    if (onGrid && nearestBeat > 0) {
+      recentBeatPositions.push(nearestBeat);
+      if (recentBeatPositions.length > BEAT_POSITION_HISTORY) recentBeatPositions.shift();
+    }
+
+    // Half-time detection
+    if (recentBeatPositions.length >= 8 && gridHits > 8) {
+      let evenCount = 0;
+      for (let k = 0; k < recentBeatPositions.length; k++) {
+        if (recentBeatPositions[k] % 2 === 0) evenCount++;
+      }
+      const evenRatio = evenCount / recentBeatPositions.length;
+
+      if (evenRatio > 0.75) {
+        tempoMultiple = 0.5;
+        tempoMultipleConfidence = Math.min(1, tempoMultipleConfidence + 0.1);
+      } else if (evenRatio < 0.4) {
+        if (tempoMultiple === 0.5) {
+          tempoMultiple = 1;
+          tempoMultipleConfidence = 0;
+        } else {
+          tempoMultipleConfidence = Math.min(1, tempoMultipleConfidence + 0.05);
+        }
+      } else {
+        tempoMultipleConfidence = Math.max(0, tempoMultipleConfidence - 0.05);
+      }
+    }
+
+    // Double-tempo detection
+    if (absOffset > 0.35 && absOffset < 0.65 && gridMisses > gridHits * 0.5 && gridMisses > 6) {
+      const halfPeriod = period / 2;
+      if (halfPeriod > MIN_PERIOD_MS) {
+        period = halfPeriod;
+        targetPeriod = halfPeriod;
+        recentPeriods = recentPeriods.map(function(p) { return p / 2; });
+        phase = timestamp;
+        gridHits = 0;
+        gridMisses = 0;
+        recentBeatPositions = [];
+        tempoMultiple = 2;
+        tempoMultipleConfidence = 0.7;
+        confidence = Math.max(0.3, confidence - 0.2);
+      }
+    }
+
+    // Decay double-time confidence
+    if (tempoMultiple === 2 && onGrid && gridHits > 12) {
+      tempoMultipleConfidence = Math.max(0, tempoMultipleConfidence - 0.02);
+      if (tempoMultipleConfidence < 0.3) {
+        tempoMultiple = 1;
+        tempoMultipleConfidence = 0;
+      }
+    }
+
+    emitUpdate();
+  }
+
+  function emitUpdate() {
+    const currentBpm = period > 0 ? 60000 / period : null;
+    const targetBpm = targetPeriod > 0 ? 60000 / targetPeriod : null;
+    const drift = (currentBpm && targetBpm) ? currentBpm - targetBpm : 0;
+
+    onUpdate({
+      state: state,
+      currentBpm: currentBpm ? Math.round(currentBpm * 10) / 10 : null,
+      targetBpm: targetBpm ? Math.round(targetBpm * 10) / 10 : null,
+      drift: Math.round(drift * 10) / 10,
+      confidence: Math.round(confidence * 100),
+      beatCount: calOnsets.length,
+      calibrationNeeded: CAL_BEATS,
+      gridHits: gridHits,
+      gridMisses: gridMisses,
+      period: period,
+      targetPeriod: targetPeriod,
+      tempoMultiple: tempoMultiple,
+      tempoMultipleConfidence: Math.round(tempoMultipleConfidence * 100),
+      tempoMultipleLabel: getTempoMultipleLabel()
+    });
+  }
+
+  function setTarget(bpm) {
+    targetPeriod = 60000 / bpm;
+    period = targetPeriod;
+    phase = performance.now();
+    confidence = 0.7;
+    state = State.TRACKING;
+    calOnsets = new Array(CAL_BEATS + 1).fill(0);
+    emitUpdate();
+  }
+
+  function destroy() {
+    stopSilenceWatch();
+  }
+
+  return { addOnset: addOnset, setTarget: setTarget, reset: reset, startSilenceWatch: startSilenceWatch, stopSilenceWatch: stopSilenceWatch, destroy: destroy };
+}
+
+// ================================================================
+// ONSET DETECTOR
+// ================================================================
+
+function createOnsetDetector(ctx, source, onOnset, opts) {
+  opts = opts || {};
+  const lowPassFreq = opts.lowPassFreq || 150;
+  const energyThreshold = opts.energyThreshold || 1.5;
+  const minInterOnsetMs = opts.minInterOnsetMs || 100;
+  const useFilter = opts.useFilter !== false;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = lowPassFreq;
+  filter.Q.value = 0.7;
+
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;
+
+  if (useFilter) {
+    source.connect(filter);
+    filter.connect(analyser);
+  } else {
+    source.connect(analyser);
+  }
+
+  const buf = new Float32Array(analyser.fftSize);
+  let energyHistory = [];
+  const histLen = 40;
+  let lastOnsetTime = 0;
+  let frameId = null;
+
+  function tick() {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const energy = Math.sqrt(sum / buf.length);
+    const now = performance.now();
+
+    energyHistory.push(energy);
+    if (energyHistory.length > histLen) energyHistory.shift();
+
+    let avg = 0;
+    for (let j = 0; j < energyHistory.length; j++) avg += energyHistory[j];
+    avg = avg / energyHistory.length;
+
+    if (energy > avg * energyThreshold && energy > 0.004 && now - lastOnsetTime > minInterOnsetMs) {
+      lastOnsetTime = now;
+      onOnset(now);
+    }
+    frameId = requestAnimationFrame(tick);
+  }
+  frameId = requestAnimationFrame(tick);
+
+  return {
+    stop: function() {
+      cancelAnimationFrame(frameId);
+      try {
+        if (useFilter) { source.disconnect(filter); filter.disconnect(analyser); }
+        else { source.disconnect(analyser); }
+      } catch(e) {}
+    }
+  };
+}
+
+// ================================================================
+// UI
+// ================================================================
+
+function initLeds() {
+  const strip = document.getElementById('led-strip');
+  while (strip.firstChild) strip.removeChild(strip.firstChild);
+  for (let i = 0; i < LED_COUNT; i++) {
+    const led = document.createElement('div');
+    led.className = 'led';
+    led.id = 'led-' + i;
+    strip.appendChild(led);
+  }
+}
+initLeds();
+
+function updateLeds(drift, active) {
+  const center = Math.floor(LED_COUNT / 2);
+  for (let i = 0; i < LED_COUNT; i++) {
+    const led = document.getElementById('led-' + i);
+    const offset = i - center;
+    let bg = '#1a1a2e';
+    let shadow = 'none';
+
+    if (active && drift !== null) {
+      const nd = Math.max(-MAX_DRIFT, Math.min(MAX_DRIFT, drift));
+      const driftLeds = (nd / MAX_DRIFT) * center;
+
+      if (offset === 0) {
+        const ad = Math.abs(nd);
+        if (ad < 1.5) { bg = '#00ff88'; shadow = '0 0 8px #00ff88'; }
+        else if (ad < 3) { bg = '#88ff00'; shadow = '0 0 6px #88ff00'; }
+        else { bg = '#333'; }
+      } else if (driftLeds > 0 && offset > 0 && offset <= Math.ceil(driftLeds)) {
+        const t = 1 - (offset - 1) / center;
+        const r = Math.floor(255 * t), g = Math.floor(60 * t);
+        bg = 'rgb(' + r + ',' + g + ',30)';
+        shadow = '0 0 ' + (6*t) + 'px rgba(' + r + ',' + g + ',30,0.5)';
+      } else if (driftLeds < 0 && offset < 0 && offset >= Math.floor(driftLeds)) {
+        const t = 1 - (Math.abs(offset) - 1) / center;
+        const b = Math.floor(255 * t), g = Math.floor(100 * t);
+        bg = 'rgb(30,' + g + ',' + b + ')';
+        shadow = '0 0 ' + (6*t) + 'px rgba(30,' + g + ',' + b + ',0.5)';
+      }
+    }
+
+    led.style.backgroundColor = bg;
+    led.style.boxShadow = shadow;
+  }
+}
+
+function updateStateBadge(state) {
+  const el = document.getElementById('state-badge');
+  el.className = 'state-badge state-' + state;
+  const labels = {};
+  labels[State.IDLE] = 'IDLE';
+  labels[State.CALIBRATING] = 'CALIBRATING';
+  labels[State.TRACKING] = 'LOCKED';
+  labels[State.WAITING] = 'BETWEEN SONGS';
+  el.textContent = labels[state] || state;
+}
+
+function updateDriftDisplay(data) {
+  const driftEl = document.getElementById('drift-value');
+  const labelEl = document.getElementById('drift-label');
+  const bpmEl = document.getElementById('bpm-display');
+  const driftDisplay = document.getElementById('drift-display');
+  const calOverlay = document.getElementById('calibration-overlay');
+
+  if (data.state === State.CALIBRATING) {
+    driftDisplay.classList.add('hidden');
+    calOverlay.classList.remove('hidden');
+    document.getElementById('calibration-count').textContent = data.beatCount + '/' + data.calibrationNeeded;
+    return;
+  }
+
+  calOverlay.classList.add('hidden');
+  driftDisplay.classList.remove('hidden');
+
+  if (data.state === State.WAITING) {
+    driftEl.textContent = data.targetBpm ? data.targetBpm.toFixed(0) : '--';
+    driftEl.className = 'drift-value waiting-pulse';
+    labelEl.textContent = 'LAST BPM';
+    bpmEl.textContent = 'Waiting for next song...';
+    return;
+  }
+
+  if (data.state !== State.TRACKING || !data.currentBpm) {
+    driftEl.textContent = '--';
+    driftEl.className = 'drift-value';
+    labelEl.textContent = 'BPM';
+    bpmEl.textContent = '';
+    return;
+  }
+
+  const drift = data.drift;
+  const absDrift = Math.abs(drift);
+
+  if (absDrift < 1.5) {
+    driftEl.textContent = data.currentBpm.toFixed(0);
+    driftEl.className = 'drift-value';
+    labelEl.textContent = 'BPM';
+  } else {
+    driftEl.textContent = (drift > 0 ? '+' : '') + drift.toFixed(1);
+    driftEl.className = 'drift-value ' + (drift > 0 ? 'rushing' : 'dragging');
+    labelEl.textContent = drift > 0 ? 'RUSHING' : 'DRAGGING';
+  }
+
+  bpmEl.textContent = data.currentBpm.toFixed(1) + ' BPM / target ' + data.targetBpm.toFixed(1);
+}
+
+function updateTempoMultiple(data) {
+  const el = document.getElementById('tempo-multiple');
+  const label = data.tempoMultipleLabel || 'normal';
+  const confidence = data.tempoMultipleConfidence || 0;
+
+  el.textContent = label;
+  el.className = 'tempo-multiple ' + label;
+
+  if (confidence >= 60 && data.state === State.TRACKING) {
+    el.classList.add('visible');
+  }
+}
+
+function updateMetronomeProgress(data) {
+  const progress = document.getElementById('metronome-progress');
+  if (!progress) return;
+
+  const drift = data.drift || 0;
+  const absDrift = Math.abs(drift);
+
+  progress.classList.remove('rushing', 'dragging');
+  if (absDrift >= 1.5) {
+    progress.classList.add(drift > 0 ? 'rushing' : 'dragging');
+  }
+}
+
+// ================================================================
+// METRONOME ANIMATION
+// ================================================================
+
+function beatFlash() {
+  const el = document.getElementById('beat-flash');
+  el.classList.add('flash');
+  setTimeout(function() { el.classList.remove('flash'); }, 100);
+
+  const beatEl = document.getElementById('metronome-beat');
+  if (beatEl) {
+    beatEl.classList.add('flash');
+    setTimeout(function() { beatEl.classList.remove('flash'); }, 80);
+  }
+}
+
+function animateMetronome() {
+  const now = performance.now();
+  const elapsed = now - metronomeLastOnsetTime;
+  const phase = Math.min(1, elapsed / metronomePeriod);
+
+  const progress = document.getElementById('metronome-progress');
+  if (progress) {
+    const circumference = 565; // 2 * PI * 90
+    progress.style.strokeDashoffset = circumference * (1 - phase);
+  }
+
+  metronomeAnimationId = requestAnimationFrame(animateMetronome);
+}
+
+function startMetronomeAnimation() {
+  if (!metronomeAnimationId) {
+    metronomeAnimationId = requestAnimationFrame(animateMetronome);
+  }
+}
+
+function stopMetronomeAnimation() {
+  if (metronomeAnimationId) {
+    cancelAnimationFrame(metronomeAnimationId);
+    metronomeAnimationId = null;
+  }
+  const progress = document.getElementById('metronome-progress');
+  if (progress) progress.style.strokeDashoffset = 565;
+}
+
+// ================================================================
+// TAP TEMPO
+// ================================================================
+
+var tapTimes = [];
+
+function handleTap() {
+  const now = performance.now();
+  if (tapTimes.length >= 2 && now - tapTimes[tapTimes.length - 1] > 3000) {
+    tapTimes = [];
+  }
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();
+
+  beatFlash();
+
+  if (tapTimes.length >= 3 && beatTracker) {
+    const ivs = [];
+    for (let i = 1; i < tapTimes.length; i++) {
+      const iv = tapTimes[i] - tapTimes[i-1];
+      if (iv > 200 && iv < 1500) ivs.push(iv);
+    }
+    if (ivs.length) {
+      ivs.sort(function(a, b) { return a - b; });
+      const bpm = Math.round((60000 / ivs[Math.floor(ivs.length / 2)]) * 10) / 10;
+      beatTracker.setTarget(bpm);
+    }
+  }
+}
+
+// ================================================================
+// CONTROLS
+// ================================================================
+
+function renderControls() {
+  const el = document.getElementById('controls');
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  if (isListening) {
+    const stopBtn = document.createElement('button');
+    stopBtn.className = 'btn btn-stop';
+    stopBtn.textContent = 'STOP';
+    stopBtn.onclick = toggleListening;
+    el.appendChild(stopBtn);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'btn-secondary';
+    resetBtn.textContent = 'RESET';
+    resetBtn.onclick = resetTracker;
+    el.appendChild(resetBtn);
+  } else {
+    const startBtn = document.createElement('button');
+    startBtn.className = 'btn btn-start';
+    startBtn.textContent = 'START';
+    startBtn.onclick = toggleListening;
+    el.appendChild(startBtn);
+  }
+}
+
+function toggleListening() {
+  if (isListening) { stopListening(); } else { startListening(); }
+}
+
+function startListening() {
+  navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  }).then(function(s) {
+    stream = s;
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const source = audioContext.createMediaStreamSource(stream);
+
+    beatTracker = createBeatTracker(function(data) {
+      updateStateBadge(data.state);
+      updateDriftDisplay(data);
+      updateTempoMultiple(data);
+      updateMetronomeProgress(data);
+
+      const active = data.state === State.TRACKING && data.currentBpm !== null;
+      updateLeds(data.drift, active);
+
+      if (data.state === State.TRACKING && data.period) {
+        metronomePeriod = data.period;
+        metronomeLastOnsetTime = performance.now();
+      }
+    });
+
+    beatTracker.reset();
+    beatTracker.startSilenceWatch();
+    startMetronomeAnimation();
+
+    detector = createOnsetDetector(audioContext, source, function(ts) {
+      beatTracker.addOnset(ts);
+      beatFlash();
+    }, {
+      energyThreshold: 1.5,
+      useFilter: true,
+      lowPassFreq: 150,
+      minInterOnsetMs: 100
+    });
+
+    isListening = true;
+    renderControls();
+
+  }).catch(function(err) {
+    console.error('Audio error:', err);
+    var msg = err.name === 'NotAllowedError'
+      ? 'Mic access denied — check browser permissions.'
+      : 'Error: ' + err.message;
+    alert(msg);
+  });
+}
+
+function stopListening() {
+  if (detector) { detector.stop(); detector = null; }
+  if (beatTracker) { beatTracker.destroy(); beatTracker = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  if (stream) { stream.getTracks().forEach(function(t) { t.stop(); }); stream = null; }
+
+  stopMetronomeAnimation();
+  isListening = false;
+  renderControls();
+  updateLeds(0, false);
+  updateStateBadge(State.IDLE);
+  updateDriftDisplay({ state: State.IDLE, currentBpm: null, targetBpm: null, drift: 0 });
+  updateTempoMultiple({ tempoMultipleLabel: 'normal', tempoMultipleConfidence: 0 });
+}
+
+function resetTracker() {
+  if (beatTracker) beatTracker.reset();
+  updateLeds(0, false);
+}
+
+// Prevent scrolling
+document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+
+// Wake lock
+function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').catch(function() {});
+  }
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+</script>
+</body>
+</html>

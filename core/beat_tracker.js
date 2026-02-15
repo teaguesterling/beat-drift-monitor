@@ -139,11 +139,23 @@ export function createBeatTracker(options = {}) {
   let gridMisses = 0;
   let recentPeriods = [];
 
+  // Tempo multiple detection (half-time / double-time)
+  let recentBeatPositions = [];    // Track which grid beats onsets land on
+  let tempoMultiple = 1;           // 0.5 = half-time, 1 = normal, 2 = double-time
+  let tempoMultipleConfidence = 0; // 0-1, confidence in detection
+  const BEAT_POSITION_HISTORY = 16;
+
   // Silence detection
   let lastOnsetTime = 0;
   let silenceCheckInterval = null;
 
   // ---- Internal helpers ----
+
+  function getTempoMultipleLabel() {
+    if (tempoMultiple === 0.5) return 'half-time';
+    if (tempoMultiple === 2) return 'double-time';
+    return 'normal';
+  }
 
   function emitUpdate() {
     const currentBpm = period > 0 ? 60000 / period : null;
@@ -161,7 +173,10 @@ export function createBeatTracker(options = {}) {
       gridHits,
       gridMisses,
       period,
-      targetPeriod
+      targetPeriod,
+      tempoMultiple,
+      tempoMultipleConfidence: Math.round(tempoMultipleConfidence * 100),
+      tempoMultipleLabel: getTempoMultipleLabel()
     };
 
     onUpdate(data);
@@ -221,6 +236,9 @@ export function createBeatTracker(options = {}) {
     onsetCount = 0;
     gridHits = 0;
     gridMisses = 0;
+    recentBeatPositions = [];
+    tempoMultiple = 1;
+    tempoMultipleConfidence = 0;
     state = State.CALIBRATING;
     emitUpdate();
   }
@@ -399,13 +417,39 @@ export function createBeatTracker(options = {}) {
       confidence = Math.max(0, confidence - 0.02);
     }
 
-    // Half-tempo detection
-    if (nearestBeat >= 2 && gridHits > 8) {
-      // Simplified: if we're consistently seeing beats at every other grid line
-      // This would need more sophisticated tracking in practice
+    // Track beat positions for tempo multiple detection
+    if (onGrid && nearestBeat > 0) {
+      recentBeatPositions.push(nearestBeat);
+      if (recentBeatPositions.length > BEAT_POSITION_HISTORY) {
+        recentBeatPositions.shift();
+      }
     }
 
-    // Double-tempo detection
+    // Half-time detection: player consistently hits every other beat
+    // Look for pattern where nearestBeat values are predominantly even (2, 4, 6...)
+    if (recentBeatPositions.length >= 8 && gridHits > 8) {
+      const evenCount = recentBeatPositions.filter(b => b % 2 === 0).length;
+      const evenRatio = evenCount / recentBeatPositions.length;
+
+      if (evenRatio > 0.75) {
+        // High confidence we're in half-time feel
+        tempoMultiple = 0.5;
+        tempoMultipleConfidence = Math.min(1, tempoMultipleConfidence + 0.1);
+      } else if (evenRatio < 0.4) {
+        // Normal feel - mostly hitting consecutive beats
+        if (tempoMultiple === 0.5) {
+          tempoMultiple = 1;
+          tempoMultipleConfidence = 0;
+        } else {
+          tempoMultipleConfidence = Math.min(1, tempoMultipleConfidence + 0.05);
+        }
+      } else {
+        // Ambiguous - reduce confidence
+        tempoMultipleConfidence = Math.max(0, tempoMultipleConfidence - 0.05);
+      }
+    }
+
+    // Double-tempo detection: onsets consistently land at half-beat positions
     if (absOffset > 0.35 && absOffset < 0.65 && gridMisses > gridHits * 0.5 && gridMisses > 6) {
       const halfPeriod = period / 2;
       if (halfPeriod > C.MIN_PERIOD_MS) {
@@ -416,7 +460,19 @@ export function createBeatTracker(options = {}) {
         phase = timestamp;
         gridHits = 0;
         gridMisses = 0;
+        recentBeatPositions = [];
+        tempoMultiple = 2;
+        tempoMultipleConfidence = 0.7;
         confidence = Math.max(0.3, confidence - 0.2);
+      }
+    }
+
+    // Decay double-time confidence if we're getting consistent on-grid hits
+    if (tempoMultiple === 2 && onGrid && gridHits > 12) {
+      tempoMultipleConfidence = Math.max(0, tempoMultipleConfidence - 0.02);
+      if (tempoMultipleConfidence < 0.3) {
+        tempoMultiple = 1;
+        tempoMultipleConfidence = 0;
       }
     }
 
@@ -476,7 +532,10 @@ export function createBeatTracker(options = {}) {
       gridMisses,
       onsetCount,
       calOnsets: [...calOnsets],
-      recentPeriods: [...recentPeriods]
+      recentPeriods: [...recentPeriods],
+      tempoMultiple,
+      tempoMultipleConfidence,
+      recentBeatPositions: [...recentBeatPositions]
     };
   }
 

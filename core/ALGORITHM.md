@@ -109,23 +109,45 @@ if (impliedPeriod > MIN_PERIOD_MS && impliedPeriod < MAX_PERIOD_MS && nearestBea
 confidence = max(0, confidence - 0.02)
 ```
 
-#### 2.4 Tempo Lock Corrections
+#### 2.4 Tempo Multiple Detection
 
-**Half-tempo detection**: If consistently seeing onsets every 2nd grid line
+The tracker detects when the player switches to half-time or double-time feel, without changing the actual grid tempo.
+
+**Beat Position Tracking**
 ```
-if (nearestBeat >= 2 && gridHits > 8):
-    if (skipRatio > 0.6):
-        period *= 2
-        targetPeriod *= 2
+// Track which grid beats onsets land on
+recentBeatPositions.push(nearestBeat)  // Keep last 16 positions
 ```
 
-**Double-tempo detection**: If onsets consistently land at half-beat positions
+**Half-time detection** (tempoMultiple = 0.5):
+Player consistently hits every other beat (e.g., beats 2, 4, 6, 8...)
+```
+if (recentBeatPositions.length >= 8 && gridHits > 8):
+    evenCount = count of positions where nearestBeat % 2 === 0
+    evenRatio = evenCount / recentBeatPositions.length
+
+    if (evenRatio > 0.75):
+        tempoMultiple = 0.5
+        tempoMultipleConfidence += 0.1
+```
+
+**Double-tempo detection** (tempoMultiple = 2):
+Onsets consistently land at half-beat positions, triggering grid halving
 ```
 if (|offset| in [0.35, 0.65] && gridMisses > gridHits * 0.5 && gridMisses > 6):
     if (period / 2 > MIN_PERIOD_MS):
         period /= 2
         targetPeriod /= 2
+        tempoMultiple = 2
+        tempoMultipleConfidence = 0.7
 ```
+
+**Confidence decay**: Double-time confidence decays with consistent on-grid hits, returning to normal feel when confidence drops below 0.3.
+
+**Output fields**:
+- `tempoMultiple`: 0.5 (half-time), 1 (normal), or 2 (double-time)
+- `tempoMultipleConfidence`: 0-100, confidence in the detection
+- `tempoMultipleLabel`: "half-time", "normal", or "double-time"
 
 ### 3. Output Calculation
 
@@ -161,6 +183,11 @@ Each onset produces a trace record:
   targetBpm: number,
   drift: number,
   confidence: number,
+
+  // Tempo multiple
+  tempoMultiple: number,           // 0.5, 1, or 2
+  tempoMultipleConfidence: number, // 0-100
+  tempoMultipleLabel: string,      // "half-time", "normal", "double-time"
 
   // Statistics
   gridHits: number,
@@ -212,6 +239,7 @@ Each onset produces a trace record:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.3.0 | 2026-02 | Add tempo multiple detection (half-time/double-time) with visual metronome |
 | 2.2.0 | 2025-02 | Remove ADAPT_SLOW - target now fixed during tracking for proper drift detection |
 | 2.1.0 | 2025-02 | Extract to standalone module with debug tracing |
 | 2.0.0 | 2025-02 | PLL-based grid tracking, replaces interval averaging |

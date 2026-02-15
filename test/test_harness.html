@@ -172,6 +172,52 @@
 
   .export-buttons { display: flex; gap: 8px; margin-top: 12px; }
   .export-buttons button { font-size: 12px; padding: 6px 12px; }
+
+  /* Metronome */
+  #metronome-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+  }
+
+  .metronome-track { fill: none; stroke: #1a1a2e; stroke-width: 6; }
+  .metronome-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 6;
+    stroke-dasharray: 283;
+    stroke-dashoffset: 283;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 50ms linear;
+  }
+  .metronome-beat {
+    fill: #1a1a2e;
+    transition: fill 80ms;
+  }
+  .metronome-beat.flash { fill: var(--success); }
+  .metronome-count {
+    text-anchor: middle;
+    fill: white;
+    font-size: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* Tempo multiple indicator */
+  .tempo-multiple-display {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 200ms;
+  }
+  .tempo-multiple-normal { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+  .tempo-multiple-half-time { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+  .tempo-multiple-double-time { background: rgba(210, 153, 34, 0.15); color: var(--warning); }
+  .tempo-multiple-hidden { opacity: 0.3; }
 </style>
 </head>
 <body>
@@ -291,7 +337,15 @@
 
       <div class="card" id="live-display" style="display: none;">
         <h3>Live Tracking</h3>
-        <div style="display: flex; gap: 24px; align-items: center; margin-top: 12px;">
+        <div style="display: flex; gap: 24px; align-items: center; margin-top: 12px; flex-wrap: wrap;">
+          <div id="metronome-container">
+            <svg id="metronome-svg" width="80" height="80" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" class="metronome-track" />
+              <circle cx="50" cy="50" r="45" class="metronome-progress" id="metronome-progress" />
+              <circle cx="50" cy="50" r="30" class="metronome-beat" id="metronome-beat" />
+              <text x="50" y="58" class="metronome-count" id="metronome-count">1</text>
+            </svg>
+          </div>
           <div class="result-stat">
             <div class="value" id="live-bpm">--</div>
             <div class="label">Current BPM</div>
@@ -307,6 +361,10 @@
           <div class="result-stat">
             <div class="value" id="live-confidence">--</div>
             <div class="label">Confidence</div>
+          </div>
+          <div class="result-stat">
+            <div id="live-tempo-multiple" class="tempo-multiple-display tempo-multiple-normal tempo-multiple-hidden">normal</div>
+            <div class="label">Feel</div>
           </div>
         </div>
       </div>
@@ -897,6 +955,91 @@ function downloadFile(filename, content, type) {
 }
 
 // ============================================================================
+// METRONOME ANIMATION
+// ============================================================================
+
+let metronomeLastOnsetTime = 0;
+let metronomePeriod = 500;
+let metronomeBeatCounter = 0;
+let metronomeAnimationId = null;
+
+function updateMetronomeOnBeat(data) {
+  if (data.state !== 'TRACKING') return;
+
+  metronomePeriod = data.period || 500;
+  metronomeLastOnsetTime = performance.now();
+
+  // Flash the beat indicator
+  const beatEl = document.getElementById('metronome-beat');
+  if (beatEl) {
+    beatEl.classList.add('flash');
+    setTimeout(() => beatEl.classList.remove('flash'), 80);
+  }
+
+  // Update beat counter (1-4)
+  metronomeBeatCounter = (metronomeBeatCounter % 4) + 1;
+  const countEl = document.getElementById('metronome-count');
+  if (countEl) countEl.textContent = metronomeBeatCounter;
+}
+
+function animateMetronome() {
+  const now = performance.now();
+  const elapsed = now - metronomeLastOnsetTime;
+  const phase = Math.min(1, elapsed / metronomePeriod);
+
+  // Update progress ring (SVG stroke-dashoffset)
+  const progress = document.getElementById('metronome-progress');
+  if (progress) {
+    const circumference = 283; // 2 * PI * 45
+    progress.style.strokeDashoffset = circumference * (1 - phase);
+  }
+
+  metronomeAnimationId = requestAnimationFrame(animateMetronome);
+}
+
+function startMetronomeAnimation() {
+  if (!metronomeAnimationId) {
+    metronomeAnimationId = requestAnimationFrame(animateMetronome);
+  }
+}
+
+function stopMetronomeAnimation() {
+  if (metronomeAnimationId) {
+    cancelAnimationFrame(metronomeAnimationId);
+    metronomeAnimationId = null;
+  }
+  // Reset metronome display
+  const progress = document.getElementById('metronome-progress');
+  if (progress) progress.style.strokeDashoffset = 283;
+  const countEl = document.getElementById('metronome-count');
+  if (countEl) countEl.textContent = '1';
+  metronomeBeatCounter = 0;
+}
+
+function updateTempoMultipleDisplay(data) {
+  const el = document.getElementById('live-tempo-multiple');
+  if (!el) return;
+
+  const label = data.tempoMultipleLabel || 'normal';
+  const confidence = data.tempoMultipleConfidence || 0;
+
+  el.textContent = label;
+  el.className = 'tempo-multiple-display';
+
+  if (confidence < 60) {
+    el.classList.add('tempo-multiple-hidden');
+  }
+
+  if (label === 'half-time') {
+    el.classList.add('tempo-multiple-half-time');
+  } else if (label === 'double-time') {
+    el.classList.add('tempo-multiple-double-time');
+  } else {
+    el.classList.add('tempo-multiple-normal');
+  }
+}
+
+// ============================================================================
 // LIVE AUDIO
 // ============================================================================
 
@@ -950,6 +1093,12 @@ async function startLive() {
           driftEl.style.color = Math.abs(data.drift) < 1.5 ? 'var(--success)' :
                                 data.drift > 0 ? 'var(--error)' : 'var(--accent)';
         }
+
+        // Update metronome on beat
+        updateMetronomeOnBeat(data);
+
+        // Update tempo multiple indicator
+        updateTempoMultipleDisplay(data);
       },
       trace: liveTrace,
       constants
@@ -985,6 +1134,7 @@ async function startLive() {
     setText('btn-start-live', 'Stop');
     document.getElementById('live-display').style.display = 'block';
 
+    startMetronomeAnimation();
     requestAnimationFrame(tick);
 
   } catch (err) {
@@ -1010,6 +1160,7 @@ function stopLive() {
     stream = null;
   }
 
+  stopMetronomeAnimation();
   document.getElementById('live-indicator').classList.remove('active');
   setText('live-status-text', 'Not listening');
   setText('btn-start-live', 'Start Live');
