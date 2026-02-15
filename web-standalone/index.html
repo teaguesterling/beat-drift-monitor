@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beat Drift Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container { max-width: 500px; text-align: center; }
+    h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { color: #888; font-size: 14px; margin-bottom: 32px; }
+    .links { display: flex; flex-direction: column; gap: 12px; }
+    a {
+      display: block;
+      padding: 16px 24px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #00ff88;
+      text-decoration: none;
+      font-size: 16px;
+      transition: all 0.15s;
+    }
+    a:hover {
+      background: rgba(0,255,136,0.1);
+      border-color: rgba(0,255,136,0.3);
+    }
+    .version { font-size: 12px; color: #666; margin-top: 4px; }
+    .dev-links { margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .dev-links h2 { font-size: 14px; color: #666; margin-bottom: 12px; font-weight: 500; }
+    .dev-links a { color: #6ba3ff; font-size: 14px; padding: 12px 20px; }
+    .github-link {
+      margin-top: 32px;
+      font-size: 12px;
+    }
+    .github-link a {
+      display: inline;
+      padding: 0;
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 12px;
+    }
+    .github-link a:hover { color: #888; background: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Beat Drift Monitor</h1>
+    <p class="subtitle">Real-time tempo drift detection for drummers</p>
+
+    <div class="links">
+      <a href="drift-monitor-v3.html">
+        Drift Monitor v3
+        <div class="version">Ring metronome + tempo feel detection</div>
+      </a>
+      <a href="drift-monitor-v2.html">
+        Drift Monitor v2
+        <div class="version">LED strip + PLL tracking</div>
+      </a>
+      <a href="drift-monitor-v1.html">
+        Drift Monitor v1
+        <div class="version">Original interval-based</div>
+      </a>
+    </div>
+
+    <div class="dev-links">
+      <h2>Development</h2>
+      <a href="test/test_harness.html">Test Harness</a>
+    </div>
+
+    <div class="github-link">
+      <a href="https://github.com/teaguesterling/beat-drift-monitor">View on GitHub</a>
+    </div>
+  </div>
+</body>
+</html>
