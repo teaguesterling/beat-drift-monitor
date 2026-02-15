@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Stonefish Drift Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
+    touch-action: manipulation;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+    position: relative;
+  }
+
+  /* Beat flash overlay */
+  #beat-flash {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    border: 3px solid rgba(255, 255, 255, 0);
+    border-radius: 0;
+    pointer-events: none;
+    transition: border-color 80ms ease-out;
+    z-index: 100;
+  }
+  #beat-flash.flash {
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  .header {
+    text-align: center;
+    padding: 16px 0 8px;
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 13px; font-weight: 600; letter-spacing: 5px;
+    color: rgba(255,255,255,0.35); text-transform: uppercase;
+  }
+  .header h2 {
+    font-size: 10px; font-weight: 400; letter-spacing: 6px;
+    color: rgba(255,255,255,0.18); text-transform: uppercase; margin-top: 2px;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 500px;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  /* BPM display */
+  .bpm-display {
+    text-align: center;
+    min-height: 90px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .bpm-number {
+    font-size: clamp(48px, 14vw, 72px);
+    font-weight: 200;
+    color: #fff;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .bpm-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+  .calibrating-count {
+    font-size: clamp(32px, 10vw, 48px);
+    font-weight: 200;
+    color: rgba(255,255,255,0.25);
+  }
+  .status-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.2);
+  }
+
+  /* LED strip */
+  .led-container { width: 100%; padding: 0 4px; }
+  .led-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px;
+    margin-bottom: 6px;
+  }
+  .led-labels span {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .led-label-drag { color: rgba(100,150,255,0.4); }
+  .led-label-rush { color: rgba(255,100,100,0.4); }
+
+  .led-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(3px, 1vw, 6px);
+    padding: 12px 0;
+  }
+  .led {
+    width: clamp(14px, 4vw, 22px);
+    height: clamp(14px, 4vw, 22px);
+    border-radius: 50%;
+    background-color: #1a1a2e;
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: all 80ms ease-out;
+    flex-shrink: 0;
+  }
+
+  /* Drift status */
+  .drift-status {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-align: center;
+    transition: color 200ms;
+    min-height: 20px;
+  }
+  .drift-status .drift-amount {
+    font-weight: 300;
+    opacity: 0.7;
+  }
+
+  /* Chart */
+  .chart-container {
+    width: 100%;
+    height: 80px;
+    flex-shrink: 0;
+  }
+  .chart-container svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 4px 0;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 14px 32px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    font-family: inherit;
+    transition: all 100ms;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .btn-start {
+    background: rgba(0,255,136,0.15);
+    color: #00ff88;
+  }
+  .btn-stop {
+    background: rgba(255,80,80,0.2);
+    color: #ff6b6b;
+  }
+  .btn-secondary {
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: #aaa;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 1px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .btn-secondary:active {
+    background: rgba(255,255,255,0.12);
+    transform: scale(0.96);
+  }
+
+  /* Settings */
+  .settings {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 1px;
+  }
+  .setting-row input[type="range"] {
+    width: 70px;
+    accent-color: #00ff88;
+  }
+  .setting-row input[type="checkbox"] {
+    accent-color: #00ff88;
+  }
+  .setting-value {
+    font-variant-numeric: tabular-nums;
+    width: 24px;
+    text-align: right;
+  }
+
+  .error-msg {
+    color: #ff6b6b;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .hint {
+    font-size: 9px;
+    color: rgba(255,255,255,0.12);
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+
+  /* Prevent pull-to-refresh on mobile */
+  body { overscroll-behavior: none; }
+
+  /* Landscape adjustments */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .bpm-display { min-height: 60px; }
+    .bpm-number { font-size: 36px; }
+    .chart-container { height: 50px; }
+    .header { padding: 4px 0; }
+    .main { gap: 4px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="beat-flash"></div>
+
+<div class="header">
+  <h1>Stonefish</h1>
+  <h2>Drift Monitor</h2>
+</div>
+
+<div class="main">
+  <div class="bpm-display" id="bpm-display">
+    <div class="status-text">Ready</div>
+  </div>
+
+  <div class="led-container">
+    <div class="led-labels">
+      <span class="led-label-drag">◂ DRAG</span>
+      <span class="led-label-rush">RUSH ▸</span>
+    </div>
+    <div class="led-strip" id="led-strip"></div>
+  </div>
+
+  <div class="drift-status" id="drift-status"></div>
+
+  <div class="chart-container" id="chart-container">
+    <svg id="chart-svg" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="controls" id="controls">
+    <button class="btn btn-start" id="btn-main" onclick="toggleListening()">START</button>
+  </div>
+
+  <div class="settings" id="settings">
+    <label class="setting-row">
+      <span>SENSITIVITY</span>
+      <input type="range" id="sensitivity" min="1.1" max="3.0" step="0.1" value="1.5">
+      <span class="setting-value" id="sens-val">1.5</span>
+    </label>
+    <label class="setting-row" style="cursor:pointer">
+      <input type="checkbox" id="use-filter" checked>
+      <span>KICK FOCUS</span>
+    </label>
+  </div>
+
+  <div class="hint">
+    Listens for beats and auto-detects tempo from first 8 hits.<br>
+    TAP TEMPO to set manually. KICK FOCUS filters low frequencies for room mic — disable for line-in.
+  </div>
+</div>
+
+<script>
+// ---- State ----
+let isListening = false;
+let audioContext = null;
+let stream = null;
+let detector = null;
+let tracker = null;
+let driftHistory = [];
+const MAX_HISTORY = 200;
+const LED_COUNT = 17;
+const MAX_DRIFT = 8;
+
+// ---- Init LEDs ----
+function initLeds() {
+  const strip = document.getElementById('led-strip');
+  strip.innerHTML = '';
+  for (let i = 0; i < LED_COUNT; i++) {
+    const led = document.createElement('div');
+    led.className = 'led';
+    led.id = `led-${i}`;
+    strip.appendChild(led);
+  }
+}
+initLeds();
+
+// ---- LED Update ----
+function updateLeds(drift, active) {
+  const center = Math.floor(LED_COUNT / 2);
+  for (let i = 0; i < LED_COUNT; i++) {
+    const led = document.getElementById(`led-${i}`);
+    const offset = i - center;
+    let bg = '#1a1a2e';
+    let shadow = 'none';
+    let transform = 'scale(1)';
+
+    if (active && drift !== null) {
+      const nd = Math.max(-MAX_DRIFT, Math.min(MAX_DRIFT, drift));
+      const driftLeds = (nd / MAX_DRIFT) * center;
+
+      if (offset === 0) {
+        const ad = Math.abs(nd);
+        if (ad < 1.5) {
+          bg = '#00ff88'; shadow = '0 0 12px #00ff88'; transform = 'scale(1.15)';
+        } else if (ad < 3) {
+          bg = '#88ff00'; shadow = '0 0 8px #88ff00';
+        } else {
+          bg = '#333';
+        }
+      } else if (driftLeds > 0 && offset > 0 && offset <= Math.ceil(driftLeds)) {
+        const t = 1 - (offset - 1) / center;
+        const r = Math.floor(255 * t), g = Math.floor(60 * t);
+        bg = `rgb(${r},${g},30)`;
+        shadow = `0 0 ${8*t}px rgba(${r},${g},30,0.6)`;
+        transform = `scale(${1 + 0.06 * t})`;
+      } else if (driftLeds < 0 && offset < 0 && offset >= Math.floor(driftLeds)) {
+        const t = 1 - (Math.abs(offset) - 1) / center;
+        const b = Math.floor(255 * t), g = Math.floor(100 * t);
+        bg = `rgb(30,${g},${b})`;
+        shadow = `0 0 ${8*t}px rgba(30,${g},${b},0.6)`;
+        transform = `scale(${1 + 0.06 * t})`;
+      }
+    }
+
+    led.style.backgroundColor = bg;
+    led.style.boxShadow = shadow;
+    led.style.transform = transform;
+  }
+}
+
+// ---- Beat Flash ----
+let flashTimeout = null;
+function beatFlash() {
+  const el = document.getElementById('beat-flash');
+  el.classList.add('flash');
+  clearTimeout(flashTimeout);
+  flashTimeout = setTimeout(() => el.classList.remove('flash'), 100);
+}
+
+// ---- BPM Display ----
+function updateBpmDisplay(data) {
+  const el = document.getElementById('bpm-display');
+  if (data.isCalibrating && isListening) {
+    el.innerHTML = `
+      <div class="calibrating-count">${data.beatCount} / ${data.calibrationNeeded}</div>
+      <div class="bpm-sub">CALIBRATING</div>
+    `;
+  } else if (data.currentBpm) {
+    el.innerHTML = `
+      <div class="bpm-number">${data.currentBpm.toFixed(1)}</div>
+      <div class="bpm-sub">BPM &mdash; TARGET ${data.targetBpm ? data.targetBpm.toFixed(1) : '...'}</div>
+    `;
+  } else if (isListening) {
+    el.innerHTML = `<div class="status-text">Waiting for beats&hellip;</div>`;
+  } else {
+    el.innerHTML = `<div class="status-text">Ready</div>`;
+  }
+}
+
+// ---- Drift Status ----
+function updateDriftStatus(data) {
+  const el = document.getElementById('drift-status');
+  if (!isListening || data.isCalibrating || !data.currentBpm) {
+    el.innerHTML = '';
+    return;
+  }
+  const ad = Math.abs(data.drift);
+  let color, label;
+  if (ad < 1.5) { color = '#00ff88'; label = 'IN THE POCKET'; }
+  else if (data.drift > 0) { color = '#ff6b6b'; label = 'RUSHING'; }
+  else { color = '#6ba3ff'; label = 'DRAGGING'; }
+
+  let extra = '';
+  if (ad >= 1.5) {
+    extra = ` <span class="drift-amount">${data.drift > 0 ? '+' : ''}${data.drift.toFixed(1)}</span>`;
+  }
+  el.style.color = color;
+  el.innerHTML = label + extra;
+}
+
+// ---- Chart ----
+function updateChart() {
+  const svg = document.getElementById('chart-svg');
+  if (driftHistory.length < 2) { svg.innerHTML = ''; return; }
+
+  const w = svg.clientWidth || 400;
+  const h = svg.clientHeight || 80;
+  const cy = h / 2;
+
+  const points = driftHistory.map((d, i) => {
+    const x = (i / (driftHistory.length - 1)) * w;
+    const y = cy - (d.drift / MAX_DRIFT) * (h / 2);
+    return { x, y, drift: d.drift };
+  });
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+  const last = points[points.length - 1];
+  const dotColor = Math.abs(last.drift) < 1.5 ? '#00ff88' : last.drift > 0 ? '#ff4444' : '#4488ff';
+
+  svg.innerHTML = `
+    <line x1="0" y1="${cy}" x2="${w}" y2="${cy}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="${w - 4}" y="11" fill="rgba(255,100,100,0.35)" font-size="9" text-anchor="end" font-family="inherit">rush</text>
+    <text x="${w - 4}" y="${h - 4}" fill="rgba(100,150,255,0.35)" font-size="9" text-anchor="end" font-family="inherit">drag</text>
+    <path d="${pathD}" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3.5" fill="${dotColor}"/>
+  `;
+}
+
+// ---- Onset Detector ----
+function createOnsetDetector(ctx, source, onOnset, opts) {
+  const {
+    lowPassFreq = 150,
+    energyThreshold = 1.5,
+    minInterOnsetMs = 150,
+    useFilter = true
+  } = opts;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = lowPassFreq;
+  filter.Q.value = 0.7;
+
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;
+
+  if (useFilter) {
+    source.connect(filter);
+    filter.connect(analyser);
+  } else {
+    source.connect(analyser);
+  }
+
+  const buf = new Float32Array(analyser.fftSize);
+  let energyHistory = [];
+  const histLen = 40;
+  let lastOnsetTime = 0;
+  let frameId = null;
+
+  function tick() {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const energy = Math.sqrt(sum / buf.length);
+    const now = performance.now();
+
+    energyHistory.push(energy);
+    if (energyHistory.length > histLen) energyHistory.shift();
+
+    const avg = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length;
+
+    if (energy > avg * energyThreshold && energy > 0.004 && now - lastOnsetTime > minInterOnsetMs) {
+      lastOnsetTime = now;
+      onOnset(now);
+    }
+    frameId = requestAnimationFrame(tick);
+  }
+  frameId = requestAnimationFrame(tick);
+
+  return {
+    stop() {
+      cancelAnimationFrame(frameId);
+      try {
+        if (useFilter) { source.disconnect(filter); filter.disconnect(analyser); }
+        else { source.disconnect(analyser); }
+      } catch(e) {}
+    }
+  };
+}
+
+// ---- Tempo Tracker ----
+function createTempoTracker(onUpdate) {
+  const onsets = [];
+  const maxOnsets = 64;
+  let targetBpm = null;
+  let calibrating = true;
+  const calBeats = 8;
+  const bpmWindow = 8;
+
+  function addOnset(ts) {
+    onsets.push(ts);
+    if (onsets.length > maxOnsets) onsets.shift();
+
+    if (onsets.length < 3) {
+      onUpdate({ currentBpm: null, targetBpm: null, drift: 0, isCalibrating: true,
+                 beatCount: onsets.length, calibrationNeeded: calBeats });
+      return;
+    }
+
+    const recent = onsets.slice(-bpmWindow);
+    const intervals = [];
+    for (let i = 1; i < recent.length; i++) {
+      const iv = recent[i] - recent[i-1];
+      if (iv > 250 && iv < 1500) intervals.push(iv);
+    }
+    if (!intervals.length) return;
+
+    intervals.sort((a, b) => a - b);
+    const median = intervals[Math.floor(intervals.length / 2)];
+    const currentBpm = 60000 / median;
+
+    if (calibrating && onsets.length >= calBeats + 1) {
+      const calOnsets = onsets.slice(0, calBeats + 1);
+      const calIv = [];
+      for (let i = 1; i < calOnsets.length; i++) {
+        const iv = calOnsets[i] - calOnsets[i-1];
+        if (iv > 250 && iv < 1500) calIv.push(iv);
+      }
+      if (calIv.length) {
+        calIv.sort((a, b) => a - b);
+        targetBpm = 60000 / calIv[Math.floor(calIv.length / 2)];
+        calibrating = false;
+      }
+    }
+
+    const drift = targetBpm ? currentBpm - targetBpm : 0;
+    onUpdate({
+      currentBpm: Math.round(currentBpm * 10) / 10,
+      targetBpm: targetBpm ? Math.round(targetBpm * 10) / 10 : null,
+      drift: Math.round(drift * 10) / 10,
+      isCalibrating: calibrating,
+      beatCount: onsets.length,
+      calibrationNeeded: calBeats
+    });
+  }
+
+  function setTarget(bpm) { targetBpm = bpm; calibrating = false; }
+  function reset() { onsets.length = 0; targetBpm = null; calibrating = true; }
+
+  return { addOnset, setTarget, reset };
+}
+
+// ---- Tap Tempo ----
+let tapTimes = [];
+function handleTap() {
+  const now = performance.now();
+  if (tapTimes.length >= 2 && now - tapTimes[tapTimes.length - 1] > 3000) {
+    tapTimes = [];
+  }
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();
+
+  if (tapTimes.length >= 3) {
+    const ivs = [];
+    for (let i = 1; i < tapTimes.length; i++) {
+      const iv = tapTimes[i] - tapTimes[i-1];
+      if (iv > 250 && iv < 1500) ivs.push(iv);
+    }
+    if (ivs.length) {
+      ivs.sort((a, b) => a - b);
+      const bpm = Math.round((60000 / ivs[Math.floor(ivs.length / 2)]) * 10) / 10;
+      if (tracker) {
+        tracker.setTarget(bpm);
+        updateBpmDisplay({ currentBpm: bpm, targetBpm: bpm, drift: 0, isCalibrating: false, beatCount: 99, calibrationNeeded: 8 });
+        updateDriftStatus({ drift: 0, isCalibrating: false, currentBpm: bpm });
+      }
+    }
+  }
+}
+
+// ---- Controls ----
+function renderControls() {
+  const el = document.getElementById('controls');
+  if (isListening) {
+    el.innerHTML = `
+      <button class="btn btn-stop" onclick="toggleListening()">STOP</button>
+      <button class="btn-secondary" onclick="resetTempo()">RESET</button>
+      <button class="btn-secondary" onclick="handleTap()">TAP TEMPO</button>
+    `;
+  } else {
+    el.innerHTML = `<button class="btn btn-start" onclick="toggleListening()">START</button>`;
+  }
+}
+
+// ---- Main Toggle ----
+async function toggleListening() {
+  if (isListening) {
+    stopListening();
+  } else {
+    await startListening();
+  }
+}
+
+async function startListening() {
+  try {
+    // Clear any previous error
+    const existingErr = document.querySelector('.error-msg');
+    if (existingErr) existingErr.remove();
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Resume in case of autoplay policy
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+
+    const source = audioContext.createMediaStreamSource(stream);
+
+    driftHistory = [];
+
+    const sensVal = parseFloat(document.getElementById('sensitivity').value);
+    const filtered = document.getElementById('use-filter').checked;
+
+    tracker = createTempoTracker((data) => {
+      updateBpmDisplay(data);
+      updateDriftStatus(data);
+
+      const active = !data.isCalibrating && data.currentBpm !== null;
+      updateLeds(data.drift, active);
+
+      if (data.currentBpm && data.targetBpm) {
+        driftHistory.push({ drift: data.drift, bpm: data.currentBpm, time: performance.now() });
+        if (driftHistory.length > MAX_HISTORY) driftHistory.shift();
+        updateChart();
+      }
+    });
+
+    detector = createOnsetDetector(audioContext, source, (ts) => {
+      tracker.addOnset(ts);
+      beatFlash();
+    }, {
+      energyThreshold: sensVal,
+      useFilter: filtered,
+      lowPassFreq: filtered ? 150 : 8000,
+      minInterOnsetMs: 150
+    });
+
+    isListening = true;
+    renderControls();
+    document.getElementById('settings').style.opacity = '0.3';
+    document.getElementById('settings').style.pointerEvents = 'none';
+    updateBpmDisplay({ currentBpm: null, targetBpm: null, drift: 0, isCalibrating: true, beatCount: 0, calibrationNeeded: 8 });
+
+  } catch (err) {
+    const msg = err.name === 'NotAllowedError'
+      ? 'Mic access denied — check your browser permissions.'
+      : err.name === 'NotFoundError'
+      ? 'No microphone found.'
+      : `Error: ${err.message}`;
+    const errEl = document.createElement('div');
+    errEl.className = 'error-msg';
+    errEl.textContent = msg;
+    document.getElementById('controls').after(errEl);
+  }
+}
+
+function stopListening() {
+  if (detector) { detector.stop(); detector = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  tracker = null;
+  isListening = false;
+  renderControls();
+  updateLeds(0, false);
+  updateBpmDisplay({ currentBpm: null, targetBpm: null, drift: 0, isCalibrating: false, beatCount: 0, calibrationNeeded: 8 });
+  updateDriftStatus({ drift: 0, isCalibrating: false, currentBpm: null });
+  document.getElementById('settings').style.opacity = '1';
+  document.getElementById('settings').style.pointerEvents = 'auto';
+}
+
+function resetTempo() {
+  if (tracker) tracker.reset();
+  driftHistory = [];
+  updateChart();
+  updateLeds(0, false);
+  updateBpmDisplay({ currentBpm: null, targetBpm: null, drift: 0, isCalibrating: true, beatCount: 0, calibrationNeeded: 8 });
+  updateDriftStatus({ drift: 0, isCalibrating: true, currentBpm: null });
+}
+
+// ---- Settings wiring ----
+document.getElementById('sensitivity').addEventListener('input', function() {
+  document.getElementById('sens-val').textContent = this.value;
+});
+
+// ---- Prevent scrolling / bouncing ----
+document.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+}, { passive: false });
+
+// ---- Wake lock (keep screen on) ----
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      await navigator.wakeLock.request('screen');
+    }
+  } catch (e) {}
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+</script>
+</body>
+</html>
